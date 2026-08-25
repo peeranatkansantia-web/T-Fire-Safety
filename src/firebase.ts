@@ -4,6 +4,7 @@ import {
   collection, 
   doc, 
   setDoc, 
+  getDoc,
   deleteDoc, 
   onSnapshot, 
   query, 
@@ -255,13 +256,16 @@ export const seedInitialDataIfEmpty = async (
         batch.set(ref, log);
       });
 
-      // Seed Settings
+      // Seed Settings only if not existing
       const settingsRef = doc(db, COLLECTIONS.APP_SETTINGS, 'general');
-      batch.set(settingsRef, {
-        profile: initialProf,
-        lineConfig: initialLine,
-        updatedAt: new Date().toISOString(),
-      });
+      const settingsSnap = await getDoc(settingsRef);
+      if (!settingsSnap.exists()) {
+        batch.set(settingsRef, {
+          profile: initialProf,
+          lineConfig: initialLine,
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
       await batch.commit();
       console.log('Firestore seed complete!');

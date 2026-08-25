@@ -22,7 +22,8 @@ import {
   InspectionRecord, 
   ActivityLog, 
   BuildingCompliance, 
-  LineNotifyConfig 
+  LineNotifyConfig,
+  UserProfile
 } from './types';
 
 import { 
@@ -53,7 +54,14 @@ import {
 export function App() {
   const [lang, setLang] = useState<Language>('th');
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useState<UserProfile>(() => {
+    try {
+      const saved = localStorage.getItem('firesafe_profile');
+      return saved ? JSON.parse(saved) : initialProfile;
+    } catch {
+      return initialProfile;
+    }
+  });
   const [firebaseConnected, setFirebaseConnected] = useState(true);
 
   const [extinguishers, setExtinguishers] = useState<ExtinguisherUnit[]>(() => {
@@ -166,8 +174,22 @@ export function App() {
 
     const unsubSettings = subscribeToAppSettings(
       (settings) => {
-        if (settings.profile) setProfile(settings.profile);
-        if (settings.lineConfig) setLineConfig(settings.lineConfig);
+        if (settings.profile) {
+          setProfile(settings.profile);
+          try {
+            localStorage.setItem('firesafe_profile', JSON.stringify(settings.profile));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        if (settings.lineConfig) {
+          setLineConfig(settings.lineConfig);
+          try {
+            localStorage.setItem('firesafe_line_config', JSON.stringify(settings.lineConfig));
+          } catch (e) {
+            console.error(e);
+          }
+        }
       }
     );
 
@@ -215,11 +237,45 @@ export function App() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('firesafe_profile', JSON.stringify(profile));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem('firesafe_line_config', JSON.stringify(lineConfig));
     } catch (e) {
       console.error(e);
     }
   }, [lineConfig]);
+
+  const handleUpdateProfile = (newProfileOrFn: React.SetStateAction<UserProfile>) => {
+    setProfile(prev => {
+      const nextProfile = typeof newProfileOrFn === 'function' ? newProfileOrFn(prev) : newProfileOrFn;
+      try {
+        localStorage.setItem('firesafe_profile', JSON.stringify(nextProfile));
+      } catch (e) {
+        console.error(e);
+      }
+      saveAppSettingsToFirebase({ profile: nextProfile, lineConfig }).catch(console.error);
+      return nextProfile;
+    });
+  };
+
+  const handleUpdateLineConfig = (newLineOrFn: React.SetStateAction<LineNotifyConfig>) => {
+    setLineConfig(prev => {
+      const nextLine = typeof newLineOrFn === 'function' ? newLineOrFn(prev) : newLineOrFn;
+      try {
+        localStorage.setItem('firesafe_line_config', JSON.stringify(nextLine));
+      } catch (e) {
+        console.error(e);
+      }
+      saveAppSettingsToFirebase({ profile, lineConfig: nextLine }).catch(console.error);
+      return nextLine;
+    });
+  };
 
   // Complete System Backup & Restore Handlers
   const handleExportFullBackup = () => {
@@ -668,9 +724,9 @@ export function App() {
             <SettingsView
               lang={lang}
               profile={profile}
-              setProfile={setProfile}
+              setProfile={handleUpdateProfile}
               lineConfig={lineConfig}
-              setLineConfig={setLineConfig}
+              setLineConfig={handleUpdateLineConfig}
               onExportFullBackup={handleExportFullBackup}
               onImportFullBackup={handleImportFullBackup}
               onResetDemoData={handleResetDemoData}
