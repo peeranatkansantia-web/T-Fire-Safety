@@ -213,64 +213,108 @@ export const saveAppSettingsToFirebase = async (settings: {
 };
 
 // ---------------------------------------------------------------------------
-// Helper: Seed Initial Data if database is empty
+// Full Cloud Synchronization Helper
+// ---------------------------------------------------------------------------
+
+export const uploadAllLocalDataToCloud = async (
+  extUnits: ExtinguisherUnit[],
+  inspRecords: InspectionRecord[],
+  bldList: BuildingCompliance[],
+  actLogs: ActivityLog[],
+  userProf?: UserProfile,
+  lineConf?: LineNotifyConfig
+) => {
+  try {
+    const batch = writeBatch(db);
+
+    if (extUnits && extUnits.length > 0) {
+      extUnits.forEach((unit) => {
+        if (unit && unit.id) {
+          const ref = doc(db, COLLECTIONS.EXTINGUISHERS, unit.id);
+          batch.set(ref, { ...unit, updatedAt: new Date().toISOString() }, { merge: true });
+        }
+      });
+    }
+
+    if (inspRecords && inspRecords.length > 0) {
+      inspRecords.forEach((record) => {
+        if (record && record.id) {
+          const ref = doc(db, COLLECTIONS.INSPECTIONS, record.id);
+          batch.set(ref, { ...record, createdAt: (record as any).createdAt || new Date().toISOString() }, { merge: true });
+        }
+      });
+    }
+
+    if (bldList && bldList.length > 0) {
+      bldList.forEach((bld) => {
+        if (bld && bld.id) {
+          const ref = doc(db, COLLECTIONS.BUILDINGS, bld.id);
+          batch.set(ref, bld, { merge: true });
+        }
+      });
+    }
+
+    if (actLogs && actLogs.length > 0) {
+      actLogs.forEach((log) => {
+        if (log && log.id) {
+          const ref = doc(db, COLLECTIONS.ACTIVITY_LOGS, log.id);
+          batch.set(ref, log, { merge: true });
+        }
+      });
+    }
+
+    if (userProf || lineConf) {
+      const settingsRef = doc(db, COLLECTIONS.APP_SETTINGS, 'general');
+      batch.set(
+        settingsRef,
+        {
+          ...(userProf ? { profile: userProf } : {}),
+          ...(lineConf ? { lineConfig: lineConf } : {}),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+    console.log('Successfully uploaded all data to Cloud Firestore');
+    return true;
+  } catch (err) {
+    console.error('Error uploading local data to Cloud Firestore:', err);
+    throw err;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Helper: Seed Initial Data or sync local storage if cloud is empty
 // ---------------------------------------------------------------------------
 
 export const seedInitialDataIfEmpty = async (
-  initialExtinguishers: ExtinguisherUnit[],
-  initialRecords: InspectionRecord[],
-  initialBuildings: BuildingCompliance[],
-  initialLogs: ActivityLog[],
-  initialProf: UserProfile,
-  initialLine: LineNotifyConfig
+  currentExtinguishers: ExtinguisherUnit[],
+  currentRecords: InspectionRecord[],
+  currentBuildings: BuildingCompliance[],
+  currentLogs: ActivityLog[],
+  currentProf: UserProfile,
+  currentLine: LineNotifyConfig
 ) => {
   try {
     const extCol = collection(db, COLLECTIONS.EXTINGUISHERS);
     const snap = await getDocs(extCol);
 
-    if (snap.empty && initialExtinguishers.length > 0) {
-      console.log('Seeding initial fire safety data to Firestore...');
-      const batch = writeBatch(db);
-
-      // Seed Extinguishers
-      initialExtinguishers.forEach((unit) => {
-        const ref = doc(db, COLLECTIONS.EXTINGUISHERS, unit.id);
-        batch.set(ref, { ...unit, updatedAt: new Date().toISOString() });
-      });
-
-      // Seed Inspections
-      initialRecords.forEach((record) => {
-        const ref = doc(db, COLLECTIONS.INSPECTIONS, record.id);
-        batch.set(ref, { ...record, createdAt: new Date().toISOString() });
-      });
-
-      // Seed Buildings
-      initialBuildings.forEach((bld) => {
-        const ref = doc(db, COLLECTIONS.BUILDINGS, bld.id);
-        batch.set(ref, bld);
-      });
-
-      // Seed Logs
-      initialLogs.forEach((log) => {
-        const ref = doc(db, COLLECTIONS.ACTIVITY_LOGS, log.id);
-        batch.set(ref, log);
-      });
-
-      // Seed Settings only if not existing
-      const settingsRef = doc(db, COLLECTIONS.APP_SETTINGS, 'general');
-      const settingsSnap = await getDoc(settingsRef);
-      if (!settingsSnap.exists()) {
-        batch.set(settingsRef, {
-          profile: initialProf,
-          lineConfig: initialLine,
-          updatedAt: new Date().toISOString(),
-        });
+    if (snap.empty) {
+      console.log('Firestore is empty. Syncing local dataset to Cloud Firestore...');
+      if (currentExtinguishers.length > 0 || currentRecords.length > 0 || currentBuildings.length > 0) {
+        await uploadAllLocalDataToCloud(
+          currentExtinguishers,
+          currentRecords,
+          currentBuildings,
+          currentLogs,
+          currentProf,
+          currentLine
+        );
       }
-
-      await batch.commit();
-      console.log('Firestore seed complete!');
     }
   } catch (err) {
-    console.warn('Error during Firestore initial seed:', err);
+    console.warn('Error during Firestore sync/seed check:', err);
   }
 };

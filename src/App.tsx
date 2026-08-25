@@ -49,6 +49,7 @@ import {
   subscribeToAppSettings,
   saveAppSettingsToFirebase,
   seedInitialDataIfEmpty,
+  uploadAllLocalDataToCloud,
 } from './firebase';
 
 export function App() {
@@ -122,21 +123,19 @@ export function App() {
 
   // Firebase Real-time Firestore Subscriptions
   useEffect(() => {
-    // Seed standard dataset if Firestore database is fresh & empty
+    // Seed / Upload local dataset to Cloud Firestore if Firestore is fresh & empty
     seedInitialDataIfEmpty(
-      initialExtinguishers,
-      initialInspectionRecords,
-      initialBuildingCompliance,
-      initialActivityLogs,
-      initialProfile,
+      extinguishers,
+      records,
+      buildings,
+      activityLogs,
+      profile,
       lineConfig
     );
 
     const unsubExt = subscribeToExtinguishers(
       (units) => {
-        if (units && units.length > 0) {
-          setExtinguishers(units);
-        }
+        setExtinguishers(units);
         setFirebaseConnected(true);
       },
       (err) => {
@@ -147,27 +146,21 @@ export function App() {
 
     const unsubInsp = subscribeToInspections(
       (recs) => {
-        if (recs && recs.length > 0) {
-          setRecords(recs);
-        }
+        setRecords(recs);
       },
       () => setFirebaseConnected(false)
     );
 
     const unsubBld = subscribeToBuildings(
       (blds) => {
-        if (blds && blds.length > 0) {
-          setBuildings(blds);
-        }
+        setBuildings(blds);
       },
       () => setFirebaseConnected(false)
     );
 
     const unsubLogs = subscribeToActivityLogs(
       (logs) => {
-        if (logs && logs.length > 0) {
-          setActivityLogs(logs);
-        }
+        setActivityLogs(logs);
       },
       () => setFirebaseConnected(false)
     );
@@ -353,16 +346,14 @@ export function App() {
   };
 
   const handleManualSyncFirestore = async () => {
-    for (const unit of extinguishers) {
-      await saveExtinguisherToFirebase(unit);
-    }
-    for (const rec of records) {
-      await addInspectionToFirebase(rec);
-    }
-    for (const bld of buildings) {
-      await saveBuildingToFirebase(bld);
-    }
-    await saveAppSettingsToFirebase({ profile, lineConfig });
+    await uploadAllLocalDataToCloud(
+      extinguishers,
+      records,
+      buildings,
+      activityLogs,
+      profile,
+      lineConfig
+    );
   };
 
   // Modals state
