@@ -34,7 +34,10 @@ import {
   initialActivityLogs 
 } from './data/mockData';
 
+import { collection, getDocs } from 'firebase/firestore';
 import {
+  db,
+  COLLECTIONS,
   subscribeToExtinguishers,
   saveExtinguisherToFirebase,
   deleteExtinguisherFromFirebase,
@@ -48,7 +51,6 @@ import {
   addActivityLogToFirebase,
   subscribeToAppSettings,
   saveAppSettingsToFirebase,
-  seedInitialDataIfEmpty,
   uploadAllLocalDataToCloud,
 } from './firebase';
 
@@ -121,21 +123,41 @@ export function App() {
   });
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Firebase Real-time Firestore Subscriptions
+  // Firebase Real-time Firestore Subscriptions & Auto-initialization
   useEffect(() => {
-    // Seed / Upload local dataset to Cloud Firestore if Firestore is fresh & empty
-    seedInitialDataIfEmpty(
-      extinguishers,
-      records,
-      buildings,
-      activityLogs,
-      profile,
-      lineConfig
-    );
+    let isInitialCheckDone = false;
+
+    // Automatically check and populate Cloud Firestore if empty
+    const ensureCloudPopulated = async () => {
+      try {
+        const extCol = collection(db, COLLECTIONS.EXTINGUISHERS);
+        const snap = await getDocs(extCol);
+        if (snap.empty) {
+          console.log('Cloud Firestore is fresh. Seeding initial data to cloud for seamless multi-device access...');
+          await uploadAllLocalDataToCloud(
+            extinguishers.length > 0 ? extinguishers : initialExtinguishers,
+            records.length > 0 ? records : initialInspectionRecords,
+            buildings.length > 0 ? buildings : initialBuildingCompliance,
+            activityLogs.length > 0 ? activityLogs : initialActivityLogs,
+            profile,
+            lineConfig
+          );
+        }
+      } catch (err) {
+        console.warn('Auto cloud population notice:', err);
+      }
+    };
+
+    ensureCloudPopulated();
 
     const unsubExt = subscribeToExtinguishers(
       (units) => {
-        setExtinguishers(units);
+        if (units && units.length > 0) {
+          setExtinguishers(units);
+        } else if (isInitialCheckDone) {
+          setExtinguishers([]);
+        }
+        isInitialCheckDone = true;
         setFirebaseConnected(true);
       },
       (err) => {
@@ -153,14 +175,18 @@ export function App() {
 
     const unsubBld = subscribeToBuildings(
       (blds) => {
-        setBuildings(blds);
+        if (blds && blds.length > 0) {
+          setBuildings(blds);
+        }
       },
       () => setFirebaseConnected(false)
     );
 
     const unsubLogs = subscribeToActivityLogs(
       (logs) => {
-        setActivityLogs(logs);
+        if (logs && logs.length > 0) {
+          setActivityLogs(logs);
+        }
       },
       () => setFirebaseConnected(false)
     );
@@ -335,7 +361,7 @@ export function App() {
     setBuildings(initialBuildingCompliance);
     setActivityLogs(initialActivityLogs);
     setProfile(initialProfile);
-    await seedInitialDataIfEmpty(
+    await uploadAllLocalDataToCloud(
       initialExtinguishers,
       initialInspectionRecords,
       initialBuildingCompliance,
