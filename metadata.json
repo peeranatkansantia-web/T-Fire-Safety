@@ -1,0 +1,6 @@
+{
+  "name": "RT-Fire Safety",
+  "description": "ระบบจัดการและตรวจสอบถังดับเพลิงและอุปกรณ์ป้องกันอัคคีภัยแบบครบวงจร (Fire Safety Equipment Management & Compliance Suite)",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
