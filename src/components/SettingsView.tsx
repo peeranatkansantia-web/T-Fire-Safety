@@ -36,6 +36,8 @@ interface SettingsViewProps {
   onResetDemoData?: () => void;
   extinguishersCount?: number;
   recordsCount?: number;
+  firebaseConnected?: boolean;
+  onSyncFirestore?: () => Promise<void>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -56,6 +58,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onResetDemoData,
   extinguishersCount = 12,
   recordsCount = 8,
+  firebaseConnected = true,
+  onSyncFirestore,
 }) => {
   const isTh = lang === 'th';
 
@@ -464,10 +468,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Section 3: Data Management & Cloud Backup Suite */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-xs space-y-4">
-        <h3 className="font-bold text-lg text-gray-900 mb-2 pb-3 border-b border-gray-100 flex items-center gap-2">
-          <Database className="w-5 h-5 text-[#d32f2f]" />
-          <span>{isTh ? 'การจัดการฐานข้อมูลและการสำรองไฟล์ (Cloud & Backup)' : 'Database & Backup Persistence'}</span>
+        <h3 className="font-bold text-lg text-gray-900 mb-2 pb-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-[#d32f2f]" />
+            <span>{isTh ? 'การจัดการฐานข้อมูลและการสำรองไฟล์ (Cloud & Backup)' : 'Database & Backup Persistence'}</span>
+          </div>
+          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+            firebaseConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${firebaseConnected ? 'bg-emerald-500 shadow-2xs shadow-emerald-500/50' : 'bg-amber-500'}`} />
+            <span>{firebaseConnected ? (isTh ? '🔥 Firebase เชื่อมต่อแล้ว' : '🔥 Firebase Connected') : (isTh ? 'กำลังเชื่อมต่อ...' : 'Connecting...')}</span>
+          </div>
         </h3>
+
+        {/* Firebase Cloud Firestore Active Info Card */}
+        <div className="p-4 bg-gradient-to-r from-red-50/70 via-orange-50/40 to-white rounded-2xl border border-red-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-[#d32f2f] text-white rounded-xl shadow-xs">
+              <Cloud className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-sm text-gray-900">Google Cloud Firestore Database</h4>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                  Real-time Sync Active
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 mt-0.5">
+                {isTh 
+                  ? 'ข้อมูลถังดับเพลิง บันทึกการตรวจ 7 จุด และข้อมูลอาคารถูกซิงค์อัตโนมัติลงฐานข้อมูล Firestore ปลอดภัยและเข้าถึงได้จากทุกอุปกรณ์'
+                  : 'Extinguisher units, 7-point records, and building compliance are synchronized live to Cloud Firestore.'}
+              </p>
+            </div>
+          </div>
+
+          {onSyncFirestore && (
+            <button
+              type="button"
+              disabled={syncingCloud}
+              onClick={async () => {
+                setSyncingCloud(true);
+                try {
+                  await onSyncFirestore();
+                  setLastSyncTime(isTh ? 'เมื่อสักครู่นี้' : 'Just now');
+                } finally {
+                  setTimeout(() => setSyncingCloud(false), 500);
+                }
+              }}
+              className="px-3.5 py-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 shrink-0 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#d32f2f] ${syncingCloud ? 'animate-spin' : ''}`} />
+              <span>{syncingCloud ? (isTh ? 'กำลังซิงค์...' : 'Syncing...') : (isTh ? 'ซิงค์ข้อมูลเดี๋ยวนี้' : 'Sync Now')}</span>
+            </button>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           

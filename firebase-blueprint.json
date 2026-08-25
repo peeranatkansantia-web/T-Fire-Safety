@@ -1,0 +1,124 @@
+{
+  "entities": {
+    "extinguishers": {
+      "title": "Extinguisher Unit",
+      "description": "Fire extinguisher assets managed within the facility",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unit ID (e.g., FE-2041)" },
+        "assetId": { "type": "string", "description": "Asset Code or Barcode ID" },
+        "building": { "type": "string", "description": "Building name in English" },
+        "buildingTh": { "type": "string", "description": "Building name in Thai" },
+        "floor": { "type": "string", "description": "Floor identifier" },
+        "roomLocation": { "type": "string", "description": "Room or zone description in English" },
+        "roomLocationTh": { "type": "string", "description": "Room or zone description in Thai" },
+        "type": { "type": "string", "enum": ["co2", "water_mist", "dry_powder", "foam", "clean_agent"] },
+        "lastInspectionDate": { "type": "string", "format": "date" },
+        "nextDueDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["normal", "due_soon", "expired", "critical"] },
+        "qrCodeUrl": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "xPos": { "type": "number" },
+        "yPos": { "type": "number" },
+        "customQrData": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "assetId", "building", "type", "status", "nextDueDate"]
+    },
+    "inspections": {
+      "title": "Inspection Record",
+      "description": "7-point visual inspection history log for extinguishers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Record UUID or identifier" },
+        "extinguisherId": { "type": "string", "description": "Foreign key pointing to extinguisher ID" },
+        "date": { "type": "string", "description": "Localized inspection date string" },
+        "rawDate": { "type": "string", "format": "date" },
+        "time": { "type": "string" },
+        "inspectorName": { "type": "string" },
+        "inspectorNameTh": { "type": "string" },
+        "inspectorBadge": { "type": "string" },
+        "inspectorInitials": { "type": "string" },
+        "status": { "type": "string", "enum": ["passed", "failed", "maintenance"] },
+        "notes": { "type": "string" },
+        "notesTh": { "type": "string" },
+        "pressurePsi": { "type": "number" },
+        "sealIntact": { "type": "boolean" },
+        "photoUrl": { "type": "string" },
+        "checkpointDetails": { "type": "object" },
+        "lineNotified": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "extinguisherId", "rawDate", "status", "inspectorName"]
+    },
+    "buildings": {
+      "title": "Building Compliance",
+      "description": "Building metadata and fire safety compliance stats",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "nameTh": { "type": "string" },
+        "location": { "type": "string" },
+        "locationTh": { "type": "string" },
+        "assetsCount": { "type": "number" },
+        "inspectedCount": { "type": "number" },
+        "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+        "complianceRate": { "type": "number" },
+        "floorPlans": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name"]
+    },
+    "activityLogs": {
+      "title": "Activity Log",
+      "description": "Real-time inspection and unit change events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "timestampTh": { "type": "string" },
+        "unitId": { "type": "string" },
+        "title": { "type": "string" },
+        "titleTh": { "type": "string" },
+        "location": { "type": "string" },
+        "locationTh": { "type": "string" },
+        "severity": { "type": "string", "enum": ["normal", "warning", "error"] }
+      },
+      "required": ["id", "unitId", "title", "severity"]
+    },
+    "appSettings": {
+      "title": "App Settings",
+      "description": "Global settings including notification configs and user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "profile": { "type": "object" },
+        "lineConfig": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id"]
+    }
+  },
+  "firestore": {
+    "/extinguishers/{extinguisherId}": {
+      "schema": "extinguishers",
+      "description": "Fire extinguisher units collection"
+    },
+    "/inspections/{inspectionId}": {
+      "schema": "inspections",
+      "description": "Inspection records collection"
+    },
+    "/buildings/{buildingId}": {
+      "schema": "buildings",
+      "description": "Building compliance summaries"
+    },
+    "/activityLogs/{logId}": {
+      "schema": "activityLogs",
+      "description": "Activity logs collection"
+    },
+    "/appSettings/{settingId}": {
+      "schema": "appSettings",
+      "description": "Global application configuration documents"
+    }
+  }
+}

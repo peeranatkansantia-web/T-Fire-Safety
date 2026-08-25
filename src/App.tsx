@@ -20,8 +20,8 @@ import {
   Language, 
   ExtinguisherUnit, 
   InspectionRecord, 
-  ActivityLog,
-  BuildingCompliance,
+  ActivityLog, 
+  BuildingCompliance, 
   LineNotifyConfig 
 } from './types';
 
@@ -33,10 +33,29 @@ import {
   initialActivityLogs 
 } from './data/mockData';
 
+import {
+  subscribeToExtinguishers,
+  saveExtinguisherToFirebase,
+  deleteExtinguisherFromFirebase,
+  subscribeToInspections,
+  addInspectionToFirebase,
+  deleteInspectionFromFirebase,
+  subscribeToBuildings,
+  saveBuildingToFirebase,
+  deleteBuildingFromFirebase,
+  subscribeToActivityLogs,
+  addActivityLogToFirebase,
+  subscribeToAppSettings,
+  saveAppSettingsToFirebase,
+  seedInitialDataIfEmpty,
+} from './firebase';
+
 export function App() {
   const [lang, setLang] = useState<Language>('th');
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   const [profile, setProfile] = useState(initialProfile);
+  const [firebaseConnected, setFirebaseConnected] = useState(true);
+
   const [extinguishers, setExtinguishers] = useState<ExtinguisherUnit[]>(() => {
     try {
       const saved = localStorage.getItem('firesafe_extinguishers');
@@ -93,7 +112,75 @@ export function App() {
   });
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Persist states
+  // Firebase Real-time Firestore Subscriptions
+  useEffect(() => {
+    // Seed standard dataset if Firestore database is fresh & empty
+    seedInitialDataIfEmpty(
+      initialExtinguishers,
+      initialInspectionRecords,
+      initialBuildingCompliance,
+      initialActivityLogs,
+      initialProfile,
+      lineConfig
+    );
+
+    const unsubExt = subscribeToExtinguishers(
+      (units) => {
+        if (units && units.length > 0) {
+          setExtinguishers(units);
+        }
+        setFirebaseConnected(true);
+      },
+      (err) => {
+        console.warn('Firestore Extinguishers error:', err);
+        setFirebaseConnected(false);
+      }
+    );
+
+    const unsubInsp = subscribeToInspections(
+      (recs) => {
+        if (recs && recs.length > 0) {
+          setRecords(recs);
+        }
+      },
+      () => setFirebaseConnected(false)
+    );
+
+    const unsubBld = subscribeToBuildings(
+      (blds) => {
+        if (blds && blds.length > 0) {
+          setBuildings(blds);
+        }
+      },
+      () => setFirebaseConnected(false)
+    );
+
+    const unsubLogs = subscribeToActivityLogs(
+      (logs) => {
+        if (logs && logs.length > 0) {
+          setActivityLogs(logs);
+        }
+      },
+      () => setFirebaseConnected(false)
+    );
+
+    const unsubSettings = subscribeToAppSettings(
+      (settings) => {
+        if (settings.profile) setProfile(settings.profile);
+        if (settings.lineConfig) setLineConfig(settings.lineConfig);
+      }
+    );
+
+    return () => {
+      unsubExt();
+      unsubInsp();
+      unsubBld();
+      unsubLogs();
+      unsubSettings();
+    };
+  }, []);
+
+  // Offline Cache Persist
   useEffect(() => {
     try {
       localStorage.setItem('firesafe_extinguishers', JSON.stringify(extinguishers));
@@ -156,33 +243,70 @@ export function App() {
     downloadAnchor.remove();
   };
 
-  const handleImportFullBackup = (importedData: any) => {
+  const handleImportFullBackup = async (importedData: any) => {
     if (importedData.extinguishers && Array.isArray(importedData.extinguishers)) {
       setExtinguishers(importedData.extinguishers);
+      for (const unit of importedData.extinguishers) {
+        saveExtinguisherToFirebase(unit).catch(console.error);
+      }
     }
     if (importedData.records && Array.isArray(importedData.records)) {
       setRecords(importedData.records);
+      for (const rec of importedData.records) {
+        addInspectionToFirebase(rec).catch(console.error);
+      }
     }
     if (importedData.buildings && Array.isArray(importedData.buildings)) {
       setBuildings(importedData.buildings);
+      for (const bld of importedData.buildings) {
+        saveBuildingToFirebase(bld).catch(console.error);
+      }
     }
     if (importedData.profile) {
       setProfile(importedData.profile);
     }
     if (importedData.activityLogs && Array.isArray(importedData.activityLogs)) {
       setActivityLogs(importedData.activityLogs);
+      for (const log of importedData.activityLogs) {
+        addActivityLogToFirebase(log).catch(console.error);
+      }
     }
     if (importedData.lineConfig) {
       setLineConfig(importedData.lineConfig);
     }
+    saveAppSettingsToFirebase({
+      profile: importedData.profile || profile,
+      lineConfig: importedData.lineConfig || lineConfig,
+    }).catch(console.error);
   };
 
-  const handleResetDemoData = () => {
+  const handleResetDemoData = async () => {
     setExtinguishers(initialExtinguishers);
     setRecords(initialInspectionRecords);
     setBuildings(initialBuildingCompliance);
     setActivityLogs(initialActivityLogs);
     setProfile(initialProfile);
+    await seedInitialDataIfEmpty(
+      initialExtinguishers,
+      initialInspectionRecords,
+      initialBuildingCompliance,
+      initialActivityLogs,
+      initialProfile,
+      lineConfig
+    );
+  };
+
+  const handleManualSyncFirestore = async () => {
+    for (const unit of extinguishers) {
+      await saveExtinguisherToFirebase(unit);
+    }
+    for (const rec of records) {
+      await addInspectionToFirebase(rec);
+    }
+    for (const bld of buildings) {
+      await saveBuildingToFirebase(bld);
+    }
+    await saveAppSettingsToFirebase({ profile, lineConfig });
   };
 
   // Modals state
@@ -239,6 +363,7 @@ export function App() {
   // Handlers
   const handleAddRecord = (newRecord: InspectionRecord) => {
     setRecords([newRecord, ...records]);
+    addInspectionToFirebase(newRecord).catch(console.error);
 
     // Update target extinguisher status
     setExtinguishers(prev => prev.map(unit => {
@@ -248,12 +373,14 @@ export function App() {
         const nextMonth = new Date(today);
         nextMonth.setMonth(nextMonth.getMonth() + 1);
 
-        return {
+        const updatedUnit: ExtinguisherUnit = {
           ...unit,
           lastInspectionDate: todayStr,
           nextDueDate: nextMonth.toISOString().slice(0, 10),
           status: newRecord.status === 'passed' ? 'normal' : 'critical'
         };
+        saveExtinguisherToFirebase(updatedUnit).catch(console.error);
+        return updatedUnit;
       }
       return unit;
     }));
@@ -271,10 +398,12 @@ export function App() {
       severity: newRecord.status === 'passed' ? 'normal' : 'error',
     };
     setActivityLogs([newLog, ...activityLogs]);
+    addActivityLogToFirebase(newLog).catch(console.error);
   };
 
   const handleAddUnit = (newUnit: ExtinguisherUnit) => {
     setExtinguishers([newUnit, ...extinguishers]);
+    saveExtinguisherToFirebase(newUnit).catch(console.error);
     
     // Auto-create building compliance record if building doesn't exist yet
     const exists = buildings.some(b => b.nameTh === newUnit.buildingTh || b.name === newUnit.building);
@@ -292,6 +421,7 @@ export function App() {
         floorPlans: [newUnit.floor || 'GF']
       };
       setBuildings(prev => [...prev, newBld]);
+      saveBuildingToFirebase(newBld).catch(console.error);
     }
 
     const newLog: ActivityLog = {
@@ -306,11 +436,13 @@ export function App() {
       severity: 'normal',
     };
     setActivityLogs([newLog, ...activityLogs]);
+    addActivityLogToFirebase(newLog).catch(console.error);
   };
 
   const handleUpdateUnit = (updatedUnit: ExtinguisherUnit) => {
     setExtinguishers(prev => prev.map(u => u.id === updatedUnit.id ? updatedUnit : u));
     setSelectedUnitDetail(updatedUnit);
+    saveExtinguisherToFirebase(updatedUnit).catch(console.error);
 
     const newLog: ActivityLog = {
       id: `ACT-${Date.now()}`,
@@ -324,12 +456,14 @@ export function App() {
       severity: 'normal',
     };
     setActivityLogs([newLog, ...activityLogs]);
+    addActivityLogToFirebase(newLog).catch(console.error);
   };
 
   const handleDeleteUnit = (unitId: string) => {
     setExtinguishers(prev => prev.filter(u => u.id !== unitId));
     setIsUnitDetailOpen(false);
     setSelectedUnitDetail(null);
+    deleteExtinguisherFromFirebase(unitId).catch(console.error);
 
     const newLog: ActivityLog = {
       id: `ACT-${Date.now()}`,
@@ -343,6 +477,7 @@ export function App() {
       severity: 'warning',
     };
     setActivityLogs([newLog, ...activityLogs]);
+    addActivityLogToFirebase(newLog).catch(console.error);
   };
 
   // Building Handlers
@@ -366,6 +501,7 @@ export function App() {
       }
       return [...prev, savedBld];
     });
+    saveBuildingToFirebase(savedBld).catch(console.error);
 
     const newLog: ActivityLog = {
       id: `ACT-${Date.now()}`,
@@ -379,14 +515,17 @@ export function App() {
       severity: 'normal',
     };
     setActivityLogs([newLog, ...activityLogs]);
+    addActivityLogToFirebase(newLog).catch(console.error);
   };
 
   const handleDeleteBuilding = (bldId: string) => {
     setBuildings(prev => prev.filter(b => b.id !== bldId));
+    deleteBuildingFromFirebase(bldId).catch(console.error);
   };
 
   const handleDeleteRecord = (recordId: string) => {
     setRecords(prev => prev.filter(r => r.id !== recordId));
+    deleteInspectionFromFirebase(recordId).catch(console.error);
     const newLog: ActivityLog = {
       id: `ACT-${Date.now()}`,
       timestamp: 'Just now',
@@ -399,6 +538,7 @@ export function App() {
       severity: 'warning',
     };
     setActivityLogs([newLog, ...activityLogs]);
+    addActivityLogToFirebase(newLog).catch(console.error);
   };
 
   const handleOpenQrCode = (unit: ExtinguisherUnit) => {
@@ -415,7 +555,7 @@ export function App() {
 
   const handleQrScanSuccess = (unitId: string, action?: 'inspect' | 'detail') => {
     const found = extinguishers.find(u => 
-      u.id.toLowerCase() === unitId.toLowerCase() ||
+      u.id.toLowerCase() === unitId.toLowerCase() || 
       u.assetId.toLowerCase() === unitId.toLowerCase() ||
       (u.customQrData && u.customQrData.toLowerCase() === unitId.toLowerCase())
     );
@@ -455,6 +595,7 @@ export function App() {
         extinguishers={extinguishers}
         activityLogs={activityLogs}
         onViewUnitDetail={handleViewUnitDetail}
+        firebaseConnected={firebaseConnected}
       />
 
       {/* Body Content with Left Sidebar */}
@@ -530,9 +671,13 @@ export function App() {
               setProfile={setProfile}
               lineConfig={lineConfig}
               setLineConfig={setLineConfig}
-              onExportData={handleExportFullBackup}
-              onImportData={handleImportFullBackup}
-              onResetData={handleResetDemoData}
+              onExportFullBackup={handleExportFullBackup}
+              onImportFullBackup={handleImportFullBackup}
+              onResetDemoData={handleResetDemoData}
+              extinguishersCount={extinguishers.length}
+              recordsCount={records.length}
+              firebaseConnected={firebaseConnected}
+              onSyncFirestore={handleManualSyncFirestore}
             />
           )}
 
