@@ -34,6 +34,8 @@ interface ExtinguishersViewProps {
   onOpenFacilityMap: () => void;
   onViewUnitDetail: (unit: ExtinguisherUnit) => void;
   onOpenQrCode: (unit: ExtinguisherUnit) => void;
+  onOpenBatchQr?: () => void;
+  onOpenQrScanner?: () => void;
   onDeleteUnit?: (unitId: string) => void;
 }
 
@@ -46,6 +48,8 @@ export const ExtinguishersView: React.FC<ExtinguishersViewProps> = ({
   onOpenFacilityMap,
   onViewUnitDetail,
   onOpenQrCode,
+  onOpenBatchQr,
+  onOpenQrScanner,
   onDeleteUnit,
 }) => {
   const isTh = lang === 'th';
@@ -146,10 +150,32 @@ export const ExtinguishersView: React.FC<ExtinguishersViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {onOpenBatchQr && (
+            <button
+              id="extinguishers-batch-qr-btn"
+              onClick={onOpenBatchQr}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl border border-gray-200 transition-colors"
+            >
+              <QrCode className="w-4 h-4 text-[#d32f2f]" />
+              <span>{isTh ? 'พิมพ์ป้าย QR ทั้งหมด' : 'Batch QR Badges'}</span>
+            </button>
+          )}
+
+          {onOpenQrScanner && (
+            <button
+              id="extinguishers-scan-qr-btn"
+              onClick={onOpenQrScanner}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-red-50 hover:bg-red-100 text-[#d32f2f] font-bold text-xs rounded-xl border border-red-200 transition-colors"
+            >
+              <QrCode className="w-4 h-4" />
+              <span>{isTh ? 'สแกน QR' : 'Scan QR'}</span>
+            </button>
+          )}
+
           <button
             id="extinguishers-map-view-btn"
             onClick={onOpenFacilityMap}
-            className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-[#d32f2f] font-bold text-xs rounded-xl border border-red-200 transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl border border-gray-200 transition-colors"
           >
             <Map className="w-4 h-4" />
             <span>{isTh ? 'แผนผังจุดติดตั้ง' : 'Map View'}</span>

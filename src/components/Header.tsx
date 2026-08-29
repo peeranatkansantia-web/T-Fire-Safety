@@ -12,7 +12,8 @@ import {
   Info,
   CheckCheck,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  BookOpen
 } from 'lucide-react';
 import { Language, UserProfile, ExtinguisherUnit, ActivityLog } from '../types';
 
@@ -23,6 +24,8 @@ interface HeaderProps {
   onOpenNewInspection: () => void;
   onOpenNewUnit: () => void;
   onOpenQrScanner: () => void;
+  onOpenManual?: () => void;
+  onSwitchToPublicView?: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   extinguishers?: ExtinguisherUnit[];
@@ -38,6 +41,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewInspection,
   onOpenNewUnit,
   onOpenQrScanner,
+  onOpenManual,
+  onSwitchToPublicView,
   searchQuery,
   setSearchQuery,
   extinguishers = [],
@@ -193,6 +198,32 @@ export const Header: React.FC<HeaderProps> = ({
             <Globe className="w-3.5 h-3.5 text-gray-500" />
             <span className="uppercase">{lang}</span>
           </button>
+
+          {/* Switch to Public View Button */}
+          {onSwitchToPublicView && (
+            <button
+              id="header-public-view-btn"
+              onClick={onSwitchToPublicView}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#d32f2f] bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors"
+              title={isTh ? 'สลับไปมุมมองบุคคลทั่วไป / ประชาชน' : 'Switch to Public / Employee Portal'}
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-[#d32f2f]" />
+              <span className="hidden sm:inline">{isTh ? 'หน้าคนทั่วไป' : 'Public View'}</span>
+            </button>
+          )}
+
+          {/* User Manual Quick Button */}
+          {onOpenManual && (
+            <button
+              id="header-manual-btn"
+              onClick={onOpenManual}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg border border-slate-200 transition-colors"
+              title={isTh ? 'คู่มือการใช้งานระบบ' : 'User Manual'}
+            >
+              <BookOpen className="w-3.5 h-3.5 text-[#d32f2f]" />
+              <span className="hidden sm:inline">{isTh ? 'คู่มือ' : 'Guide'}</span>
+            </button>
+          )}
 
           {/* Notifications Dropdown Toggle */}
           <div className="relative">
@@ -379,6 +410,18 @@ export const Header: React.FC<HeaderProps> = ({
                       <Check className="w-3.5 h-3.5" /> Active
                     </span>
                   </div>
+                  {onOpenManual && (
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        onOpenManual();
+                      }}
+                      className="w-full px-4 py-2 hover:bg-red-50 text-left flex items-center gap-2 text-gray-700 hover:text-[#d32f2f] transition-colors"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-[#d32f2f]" />
+                      <span>{isTh ? 'คู่มือการใช้งานระบบ (User Manual)' : 'System User Manual'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}

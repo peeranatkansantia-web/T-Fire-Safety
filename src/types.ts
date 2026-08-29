@@ -1,10 +1,29 @@
 export type Language = 'th' | 'en';
 
-export type TabType = 'dashboard' | 'extinguishers' | 'records' | 'reports' | 'settings';
+export type ViewMode = 'admin' | 'public';
+
+export type TabType = 'dashboard' | 'extinguishers' | 'records' | 'reports' | 'settings' | 'guide';
 
 export type ExtinguisherStatus = 'normal' | 'due_soon' | 'expired' | 'critical';
 
 export type ExtinguisherType = 'co2' | 'water_mist' | 'dry_powder' | 'foam' | 'clean_agent';
+
+export interface PublicIssueReport {
+  id: string;
+  unitId: string;
+  assetId?: string;
+  building: string;
+  buildingTh: string;
+  roomLocation: string;
+  roomLocationTh: string;
+  issueType: 'pressure_low' | 'seal_broken' | 'damaged_body' | 'missing' | 'discharged' | 'blocked' | 'other';
+  description: string;
+  reporterName: string;
+  reporterPhone?: string;
+  photoUrl?: string;
+  createdAt: string; // ISO string or human readable
+  status: 'pending' | 'resolved' | 'investigating';
+}
 
 export interface ExtinguisherUnit {
   id: string; // e.g. FE-2041

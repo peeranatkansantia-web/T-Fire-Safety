@@ -6,7 +6,8 @@ import {
   BarChart3, 
   Settings,
   Building2,
-  Map
+  Map,
+  BookOpen
 } from 'lucide-react';
 import { TabType, Language } from '../types';
 
@@ -15,7 +16,9 @@ interface SidebarProps {
   setCurrentTab: (tab: TabType) => void;
   lang: Language;
   onOpenFacilityMap: () => void;
+  onSwitchToPublicView?: () => void;
   extinguishersCount?: number;
+  pendingReportsCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -23,7 +26,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCurrentTab,
   lang,
   onOpenFacilityMap,
+  onSwitchToPublicView,
   extinguishersCount = 0,
+  pendingReportsCount = 0,
 }) => {
   const isTh = lang === 'th';
 
@@ -58,6 +63,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       labelTh: 'การตั้งค่าระบบ',
       labelEn: 'Settings',
       icon: Settings,
+    },
+    {
+      id: 'guide' as TabType,
+      labelTh: 'คู่มือการใช้งาน',
+      labelEn: 'User Manual',
+      icon: BookOpen,
     },
   ];
 
@@ -106,8 +117,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Quick Tools & Maps */}
-          <div>
-            <p className="px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+          <div className="space-y-2">
+            <p className="px-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">
               {isTh ? 'ผังอาคาร & พื้นที่' : 'Facility Maps'}
             </p>
             <button
@@ -121,6 +132,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-[10px] text-gray-500">{isTh ? 'พิกัดและตำแหน่งในผัง' : 'Building floor plans'}</p>
               </div>
             </button>
+
+            {onSwitchToPublicView && (
+              <button
+                id="sidebar-public-view-btn"
+                onClick={onSwitchToPublicView}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors group"
+              >
+                <div className="w-4 h-4 rounded-full bg-red-500/20 text-[#d32f2f] flex items-center justify-center text-[9px] font-black">
+                  🌐
+                </div>
+                <div className="text-left">
+                  <p className="font-bold text-gray-900">{isTh ? 'มุมมองคนทั่วไป / ประชาชน' : 'Public Portal View'}</p>
+                  <p className="text-[10px] text-gray-500">{isTh ? 'หน้าสแกน QR สำหรับพนักงาน' : 'Public scan view'}</p>
+                </div>
+              </button>
+            )}
           </div>
 
         </div>

@@ -27,6 +27,7 @@ interface NewInspectionModalProps {
   extinguishers: ExtinguisherUnit[];
   onAddRecord: (newRecord: InspectionRecord) => void;
   initialUnitId?: string;
+  onOpenQrScanner?: () => void;
 }
 
 export const NewInspectionModal: React.FC<NewInspectionModalProps> = ({
@@ -36,6 +37,7 @@ export const NewInspectionModal: React.FC<NewInspectionModalProps> = ({
   extinguishers,
   onAddRecord,
   initialUnitId,
+  onOpenQrScanner,
 }) => {
   if (!isOpen) return null;
 
@@ -345,17 +347,31 @@ export const NewInspectionModal: React.FC<NewInspectionModalProps> = ({
                   )}
                 </div>
 
-                <select
-                  value={selectedUnitId}
-                  onChange={(e) => setSelectedUnitId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-bold text-gray-900"
-                >
-                  {extinguishers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.id} — {isTh ? u.buildingTh || u.building : u.building} ({isTh ? u.roomLocationTh || u.roomLocation : u.roomLocation}) • {u.type.toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedUnitId}
+                    onChange={(e) => setSelectedUnitId(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-bold text-gray-900"
+                  >
+                    {extinguishers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.id} — {isTh ? u.buildingTh || u.building : u.building} ({isTh ? u.roomLocationTh || u.roomLocation : u.roomLocation}) • {u.type.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+
+                  {onOpenQrScanner && (
+                    <button
+                      type="button"
+                      onClick={onOpenQrScanner}
+                      className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-[#d32f2f] font-bold text-xs rounded-xl border border-red-200 flex items-center gap-1.5 shrink-0 transition-colors shadow-2xs"
+                      title={isTh ? 'สแกน QR Code หน้าถังเพื่อเลือกอัตโนมัติ' : 'Scan QR code to auto-select'}
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span className="hidden sm:inline">{isTh ? 'สแกน QR' : 'Scan QR'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Quick Visual Guide Banner Callout */}

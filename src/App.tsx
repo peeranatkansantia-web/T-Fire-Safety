@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { QrCode, Lock, Globe, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
@@ -6,6 +7,8 @@ import { ExtinguishersView } from './components/ExtinguishersView';
 import { RecordsView } from './components/RecordsView';
 import { ReportsView } from './components/ReportsView';
 import { SettingsView } from './components/SettingsView';
+import { ManualView } from './components/ManualView';
+import { PublicView } from './components/PublicView';
 
 import { NewInspectionModal } from './components/modals/NewInspectionModal';
 import { NewUnitModal } from './components/modals/NewUnitModal';
@@ -14,16 +17,20 @@ import { FacilityMapModal } from './components/modals/FacilityMapModal';
 import { ReportExportModal } from './components/modals/ReportExportModal';
 import { UnitDetailModal } from './components/modals/UnitDetailModal';
 import { BuildingModal } from './components/modals/BuildingModal';
+import { AdminLoginModal } from './components/modals/AdminLoginModal';
+import { ReportIssueModal } from './components/modals/ReportIssueModal';
 
 import { 
   TabType, 
   Language, 
+  ViewMode,
   ExtinguisherUnit, 
   InspectionRecord, 
   ActivityLog, 
   BuildingCompliance, 
   LineNotifyConfig,
-  UserProfile
+  UserProfile,
+  PublicIssueReport
 } from './types';
 
 import { 
@@ -57,6 +64,37 @@ import {
 export function App() {
   const [lang, setLang] = useState<Language>('th');
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
+  
+  // Dual-view mode state: 'admin' (Safety Management) | 'public' (General Employee & Public)
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('view') === 'public') return 'public';
+      if (urlParams.get('view') === 'admin') return 'admin';
+      const saved = localStorage.getItem('firesafe_view_mode');
+      return (saved as ViewMode) || 'admin';
+    } catch {
+      return 'admin';
+    }
+  });
+
+  const [adminPin, setAdminPin] = useState<string>(() => {
+    try {
+      return localStorage.getItem('firesafe_admin_pin') || '1234';
+    } catch {
+      return '1234';
+    }
+  });
+
+  const [publicReports, setPublicReports] = useState<PublicIssueReport[]>(() => {
+    try {
+      const saved = localStorage.getItem('firesafe_public_reports');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [profile, setProfile] = useState<UserProfile>(() => {
     try {
       const saved = localStorage.getItem('firesafe_profile');
@@ -393,34 +431,65 @@ export function App() {
   const [isReportExportOpen, setIsReportExportOpen] = useState(false);
   const [isUnitDetailOpen, setIsUnitDetailOpen] = useState(false);
   const [selectedUnitDetail, setSelectedUnitDetail] = useState<ExtinguisherUnit | null>(null);
+  const [scannedLandingUnit, setScannedLandingUnit] = useState<ExtinguisherUnit | null>(null);
+
+  // Public portal & Security states
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
+  const [isReportIssueOpen, setIsReportIssueOpen] = useState(false);
+  const [reportTargetUnit, setReportTargetUnit] = useState<ExtinguisherUnit | null>(null);
+  const [pendingAdminAction, setPendingAdminAction] = useState<{ type: 'inspect' | 'manage'; unitId?: string } | null>(null);
+  const [publicActiveUnit, setPublicActiveUnit] = useState<ExtinguisherUnit | null>(null);
 
   // Auto-detect unit from URL query (?unit=FE-2041 or ?inspect=FE-2041 or hash #unit=FE-2041)
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const unitId = urlParams.get('unit') || urlParams.get('id') || urlParams.get('inspect') || urlParams.get('extinguisher');
+      const unitId = 
+        urlParams.get('unit') || 
+        urlParams.get('id') || 
+        urlParams.get('inspect') || 
+        urlParams.get('extinguisher') ||
+        urlParams.get('code') ||
+        urlParams.get('tag');
       const isInspect = urlParams.get('action') === 'inspect' || !!urlParams.get('inspect');
+      const requestedView = urlParams.get('view');
       
       let targetId = unitId;
       if (!targetId && window.location.hash) {
-        const hashMatch = window.location.hash.match(/(?:unit|inspect|id)[=:/-]?([A-Za-z0-9-_]+)/i);
+        const hashMatch = window.location.hash.match(/(?:unit|inspect|id|extinguisher)[=:/-]?([A-Za-z0-9-_]+)/i);
         if (hashMatch) targetId = hashMatch[1];
       }
 
       if (targetId && extinguishers.length > 0) {
-        const found = extinguishers.find(u => 
-          u.id.toLowerCase() === targetId!.toLowerCase() || 
-          u.assetId.toLowerCase() === targetId!.toLowerCase() ||
-          (u.customQrData && u.customQrData.toLowerCase() === targetId!.toLowerCase())
-        );
+        const cleanTarget = targetId.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const found = extinguishers.find(u => {
+          const cleanId = u.id.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanAsset = u.assetId.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return (
+            u.id.toLowerCase() === targetId!.toLowerCase() || 
+            u.assetId.toLowerCase() === targetId!.toLowerCase() ||
+            (u.customQrData && u.customQrData.toLowerCase() === targetId!.toLowerCase()) ||
+            cleanId === cleanTarget ||
+            cleanAsset === cleanTarget ||
+            (cleanTarget.length >= 3 && cleanId.includes(cleanTarget))
+          );
+        });
 
         if (found) {
-          setSelectedUnitDetail(found);
-          if (isInspect) {
-            setInspectionUnitId(found.id);
-            setIsNewInspectionOpen(true);
-          } else {
-            setIsUnitDetailOpen(true);
+          setPublicActiveUnit(found);
+          setScannedLandingUnit(found);
+          try {
+            window.history.replaceState({}, '', window.location.pathname);
+          } catch {}
+
+          if (requestedView === 'admin' || viewMode === 'admin') {
+            if (isInspect) {
+              setInspectionUnitId(found.id);
+              setIsNewInspectionOpen(true);
+            } else {
+              setSelectedUnitDetail(found);
+              setIsUnitDetailOpen(true);
+            }
           }
         }
       }
@@ -428,6 +497,74 @@ export function App() {
       console.error('URL parse error:', e);
     }
   }, [extinguishers]);
+
+  // Dual View Mode Transitions
+  const handleSwitchToPublicView = () => {
+    setViewMode('public');
+    try {
+      localStorage.setItem('firesafe_view_mode', 'public');
+    } catch {}
+  };
+
+  const handleSwitchToAdminView = () => {
+    setIsAdminLoginOpen(true);
+  };
+
+  const handleRequestAdminLogin = (action?: 'inspect' | 'manage', unitId?: string) => {
+    setPendingAdminAction({ type: action || 'manage', unitId });
+    setIsAdminLoginOpen(true);
+  };
+
+  const handleAdminLoginSuccess = () => {
+    setViewMode('admin');
+    try {
+      localStorage.setItem('firesafe_view_mode', 'admin');
+    } catch {}
+    if (pendingAdminAction?.type === 'inspect' && pendingAdminAction.unitId) {
+      setInspectionUnitId(pendingAdminAction.unitId);
+      setIsNewInspectionOpen(true);
+    }
+    setPendingAdminAction(null);
+  };
+
+  const handleOpenReportIssue = (unit?: ExtinguisherUnit) => {
+    setReportTargetUnit(unit || null);
+    setIsReportIssueOpen(true);
+  };
+
+  const handleSubmitPublicReport = (newReport: PublicIssueReport) => {
+    const updated = [newReport, ...publicReports];
+    setPublicReports(updated);
+    try {
+      localStorage.setItem('firesafe_public_reports', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+
+    // Add activity log for admin
+    const newLog: ActivityLog = {
+      id: `ACT-${Date.now()}`,
+      timestamp: 'Just now',
+      timestampTh: 'เมื่อสักครู่นี้',
+      unitId: newReport.unitId,
+      title: `🚨 Issue reported for ${newReport.unitId} (${newReport.description}) by ${newReport.reporterName}`,
+      titleTh: `🚨 ได้รับแจ้งปัญหาถัง ${newReport.unitId} (${newReport.description}) จากคุณ ${newReport.reporterName}`,
+      location: newReport.building,
+      locationTh: newReport.buildingTh,
+      severity: 'error',
+    };
+    setActivityLogs(prev => [newLog, ...prev]);
+    addActivityLogToFirebase(newLog).catch(console.error);
+  };
+
+  const handleUpdateAdminPin = (newPin: string) => {
+    setAdminPin(newPin);
+    try {
+      localStorage.setItem('firesafe_admin_pin', newPin);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Building Modal State
   const [isBuildingModalOpen, setIsBuildingModalOpen] = useState(false);
@@ -620,6 +757,12 @@ export function App() {
     setIsQrModalOpen(true);
   };
 
+  const handleOpenBatchQr = () => {
+    setQrUnit(extinguishers[0] || null);
+    setQrMode('view');
+    setIsQrModalOpen(true);
+  };
+
   const handleOpenQrScanner = () => {
     setQrUnit(extinguishers[0] || null);
     setQrMode('scanner');
@@ -655,108 +798,199 @@ export function App() {
   return (
     <div id="firesafe-app-root" className="min-h-screen bg-[#fbf9f9] text-[#1b1c1c] flex flex-col font-sans">
       
-      {/* Header */}
-      <Header
-        lang={lang}
-        setLang={setLang}
-        profile={profile}
-        onOpenNewInspection={() => setIsNewInspectionOpen(true)}
-        onOpenNewUnit={() => setIsNewUnitOpen(true)}
-        onOpenQrScanner={handleOpenQrScanner}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        extinguishers={extinguishers}
-        activityLogs={activityLogs}
-        onViewUnitDetail={handleViewUnitDetail}
-        firebaseConnected={firebaseConnected}
-      />
-
-      {/* Body Content with Left Sidebar */}
-      <div className="flex-1 flex pb-16 md:pb-0">
-        
-        {/* Navigation Sidebar */}
-        <Sidebar
-          currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
+      {/* Public View Mode (Accessible by anyone, mobile optimized) */}
+      {viewMode === 'public' ? (
+        <PublicView
           lang={lang}
-          onOpenFacilityMap={() => setIsFacilityMapOpen(true)}
-          extinguishersCount={extinguishers.length}
+          setLang={setLang}
+          extinguishers={extinguishers}
+          activeUnit={publicActiveUnit || extinguishers[0] || null}
+          onSelectUnit={(unit) => setPublicActiveUnit(unit)}
+          onOpenQrScanner={handleOpenQrScanner}
+          onOpenReportIssue={handleOpenReportIssue}
+          onRequestAdminLogin={handleRequestAdminLogin}
         />
+      ) : (
+        /* Admin / Safety Officer Operations Center View */
+        <>
+          {/* Header */}
+          <Header
+            lang={lang}
+            setLang={setLang}
+            profile={profile}
+            onOpenNewInspection={() => setIsNewInspectionOpen(true)}
+            onOpenNewUnit={() => setIsNewUnitOpen(true)}
+            onOpenQrScanner={handleOpenQrScanner}
+            onOpenManual={() => setCurrentTab('guide')}
+            onSwitchToPublicView={handleSwitchToPublicView}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            extinguishers={extinguishers}
+            activityLogs={activityLogs}
+            onViewUnitDetail={handleViewUnitDetail}
+            firebaseConnected={firebaseConnected}
+          />
 
-        {/* Main Workspace View */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
-          
-          {currentTab === 'dashboard' && (
-            <DashboardView
+          {/* Body Content with Left Sidebar */}
+          <div className="flex-1 flex pb-16 md:pb-0">
+            
+            {/* Navigation Sidebar */}
+            <Sidebar
+              currentTab={currentTab}
+              setCurrentTab={setCurrentTab}
               lang={lang}
-              extinguishers={extinguishers}
-              records={records}
-              onOpenNewInspection={() => setIsNewInspectionOpen(true)}
-              onOpenNewUnit={() => setIsNewUnitOpen(true)}
               onOpenFacilityMap={() => setIsFacilityMapOpen(true)}
-              onViewUnitDetail={handleViewUnitDetail}
-              onOpenQrCode={handleOpenQrCode}
-              onDeleteUnit={handleDeleteUnit}
-            />
-          )}
-
-          {currentTab === 'extinguishers' && (
-            <ExtinguishersView
-              lang={lang}
-              extinguishers={extinguishers}
-              activityLogs={activityLogs}
-              buildings={buildings}
-              onOpenNewUnit={() => setIsNewUnitOpen(true)}
-              onOpenFacilityMap={() => setIsFacilityMapOpen(true)}
-              onViewUnitDetail={handleViewUnitDetail}
-              onOpenQrCode={handleOpenQrCode}
-              onDeleteUnit={handleDeleteUnit}
-            />
-          )}
-
-          {currentTab === 'records' && (
-            <RecordsView
-              lang={lang}
-              records={records}
-              onOpenNewInspection={() => setIsNewInspectionOpen(true)}
-              onOpenExportModal={() => setIsReportExportOpen(true)}
-              onDeleteRecord={handleDeleteRecord}
-            />
-          )}
-
-          {currentTab === 'reports' && (
-            <ReportsView
-              lang={lang}
-              buildings={buildings}
-              extinguishers={extinguishers}
-              records={records}
-              onOpenExportModal={() => setIsReportExportOpen(true)}
-              onOpenAddBuilding={handleOpenAddBuilding}
-              onEditBuilding={handleOpenEditBuilding}
-              onDeleteBuilding={handleDeleteBuilding}
-            />
-          )}
-
-          {currentTab === 'settings' && (
-            <SettingsView
-              lang={lang}
-              profile={profile}
-              setProfile={handleUpdateProfile}
-              lineConfig={lineConfig}
-              setLineConfig={handleUpdateLineConfig}
-              onExportFullBackup={handleExportFullBackup}
-              onImportFullBackup={handleImportFullBackup}
-              onResetDemoData={handleResetDemoData}
+              onSwitchToPublicView={handleSwitchToPublicView}
               extinguishersCount={extinguishers.length}
-              recordsCount={records.length}
-              firebaseConnected={firebaseConnected}
-              onSyncFirestore={handleManualSyncFirestore}
             />
-          )}
 
-        </main>
+            {/* Main Workspace View */}
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
 
-      </div>
+              {/* Quick-Scan Landing Banner (When launched from QR code scan) */}
+              {scannedLandingUnit && (
+                <div className="p-4 bg-emerald-50 border-2 border-emerald-400 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in slide-in-from-top-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-600 text-white rounded-xl shrink-0">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sm text-emerald-950">
+                          {lang === 'th' ? `📱 ตรวจพบอุปกรณ์จากการสแกน: ${scannedLandingUnit.id}` : `Scanned Asset Detected: ${scannedLandingUnit.id}`}
+                        </span>
+                        <span className="text-[10px] bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-full uppercase">
+                          {scannedLandingUnit.type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-emerald-800 font-medium mt-0.5">
+                        📍 {lang === 'th' ? scannedLandingUnit.buildingTh || scannedLandingUnit.building : scannedLandingUnit.building} ({lang === 'th' ? scannedLandingUnit.roomLocationTh || scannedLandingUnit.roomLocation : scannedLandingUnit.roomLocation}) • Tag: {scannedLandingUnit.assetId}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInspectionUnitId(scannedLandingUnit.id);
+                        setIsNewInspectionOpen(true);
+                      }}
+                      className="px-4 py-2 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors"
+                    >
+                      <span>{lang === 'th' ? '⚡ บันทึกการตรวจเช็ก 7 จุด' : 'Audit 7 Points'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUnitDetail(scannedLandingUnit);
+                        setIsUnitDetailOpen(true);
+                      }}
+                      className="px-3.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs rounded-xl transition-colors"
+                    >
+                      <span>{lang === 'th' ? 'ดูข้อมูล' : 'Details'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setScannedLandingUnit(null)}
+                      className="p-2 text-emerald-700 hover:text-emerald-950 hover:bg-emerald-100/80 rounded-xl"
+                      title="Close"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {currentTab === 'dashboard' && (
+                <DashboardView
+                  lang={lang}
+                  extinguishers={extinguishers}
+                  records={records}
+                  onOpenNewInspection={() => setIsNewInspectionOpen(true)}
+                  onOpenNewUnit={() => setIsNewUnitOpen(true)}
+                  onOpenFacilityMap={() => setIsFacilityMapOpen(true)}
+                  onViewUnitDetail={handleViewUnitDetail}
+                  onOpenQrCode={handleOpenQrCode}
+                  onDeleteUnit={handleDeleteUnit}
+                />
+              )}
+
+              {currentTab === 'extinguishers' && (
+                <ExtinguishersView
+                  lang={lang}
+                  extinguishers={extinguishers}
+                  activityLogs={activityLogs}
+                  buildings={buildings}
+                  onOpenNewUnit={() => setIsNewUnitOpen(true)}
+                  onOpenFacilityMap={() => setIsFacilityMapOpen(true)}
+                  onViewUnitDetail={handleViewUnitDetail}
+                  onOpenQrCode={handleOpenQrCode}
+                  onOpenBatchQr={handleOpenBatchQr}
+                  onOpenQrScanner={handleOpenQrScanner}
+                  onDeleteUnit={handleDeleteUnit}
+                />
+              )}
+
+              {currentTab === 'records' && (
+                <RecordsView
+                  lang={lang}
+                  records={records}
+                  onOpenNewInspection={() => setIsNewInspectionOpen(true)}
+                  onOpenExportModal={() => setIsReportExportOpen(true)}
+                  onDeleteRecord={handleDeleteRecord}
+                />
+              )}
+
+              {currentTab === 'reports' && (
+                <ReportsView
+                  lang={lang}
+                  buildings={buildings}
+                  extinguishers={extinguishers}
+                  records={records}
+                  onOpenExportModal={() => setIsReportExportOpen(true)}
+                  onOpenAddBuilding={handleOpenAddBuilding}
+                  onEditBuilding={handleOpenEditBuilding}
+                  onDeleteBuilding={handleDeleteBuilding}
+                />
+              )}
+
+              {currentTab === 'settings' && (
+                <SettingsView
+                  lang={lang}
+                  profile={profile}
+                  setProfile={handleUpdateProfile}
+                  lineConfig={lineConfig}
+                  setLineConfig={handleUpdateLineConfig}
+                  adminPin={adminPin}
+                  setAdminPin={handleUpdateAdminPin}
+                  onExportFullBackup={handleExportFullBackup}
+                  onImportFullBackup={handleImportFullBackup}
+                  onResetDemoData={handleResetDemoData}
+                  extinguishersCount={extinguishers.length}
+                  recordsCount={records.length}
+                  firebaseConnected={firebaseConnected}
+                  onSyncFirestore={handleManualSyncFirestore}
+                />
+              )}
+
+              {currentTab === 'guide' && (
+                <ManualView
+                  lang={lang}
+                  onNavigateTab={(tab) => setCurrentTab(tab)}
+                  onOpenQrScanner={handleOpenQrScanner}
+                  onOpenFacilityMap={() => setIsFacilityMapOpen(true)}
+                  onOpenNewInspection={() => setIsNewInspectionOpen(true)}
+                />
+              )}
+
+            </main>
+
+          </div>
+        </>
+      )}
 
       {/* Global Interactive Modals */}
       <NewInspectionModal
@@ -769,6 +1003,7 @@ export function App() {
         extinguishers={extinguishers}
         onAddRecord={handleAddRecord}
         initialUnitId={inspectionUnitId}
+        onOpenQrScanner={handleOpenQrScanner}
       />
 
       <NewUnitModal
@@ -831,6 +1066,32 @@ export function App() {
         editingBuilding={editingBuilding}
         onSaveBuilding={handleSaveBuilding}
         onDeleteBuilding={handleDeleteBuilding}
+      />
+
+      {/* Admin Authentication Modal */}
+      <AdminLoginModal
+        isOpen={isAdminLoginOpen}
+        onClose={() => {
+          setIsAdminLoginOpen(false);
+          setPendingAdminAction(null);
+        }}
+        lang={lang}
+        adminPin={adminPin}
+        onLoginSuccess={handleAdminLoginSuccess}
+        intendedAction={pendingAdminAction?.type}
+      />
+
+      {/* Public Damage / Issue Report Modal */}
+      <ReportIssueModal
+        isOpen={isReportIssueOpen}
+        onClose={() => {
+          setIsReportIssueOpen(false);
+          setReportTargetUnit(null);
+        }}
+        lang={lang}
+        unit={reportTargetUnit}
+        extinguishers={extinguishers}
+        onSubmitReport={handleSubmitPublicReport}
       />
 
     </div>
