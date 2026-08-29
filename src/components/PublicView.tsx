@@ -254,11 +254,11 @@ export const PublicView: React.FC<PublicViewProps> = ({
               <span>199 (สายด่วนดับเพลิง)</span>
             </a>
             <a 
-              href="tel:021234567" 
-              className="bg-red-700 text-white px-2 py-0.5 rounded-lg hover:bg-red-800 transition-colors hidden sm:inline-flex items-center gap-1"
+              href="tel:1669" 
+              className="bg-red-700 text-white px-2 py-0.5 rounded-lg hover:bg-red-800 transition-colors hidden sm:inline-flex items-center gap-1 font-bold"
             >
               <PhoneCall className="w-3 h-3" />
-              <span>{isTh ? 'รปภ./ศูนย์ควบคุม' : 'Security / Control'}</span>
+              <span>1669 (กู้ชีพฉุกเฉิน)</span>
             </a>
           </div>
         </div>
@@ -807,34 +807,6 @@ export const PublicView: React.FC<PublicViewProps> = ({
                   <p className="text-xs text-gray-600">กู้ชีพ / รถพยาบาลฉุกเฉิน</p>
                 </div>
                 <div className="p-3 bg-emerald-600 text-white rounded-xl group-hover:scale-105 transition-transform">
-                  <PhoneCall className="w-5 h-5" />
-                </div>
-              </a>
-
-              <a
-                href="tel:021234567"
-                className="p-4 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-2xl flex items-center justify-between transition-all group shadow-2xs"
-              >
-                <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Facility Security</span>
-                  <h4 className="text-base font-black text-gray-900">ห้องควบคุมและ รปภ. อาคาร</h4>
-                  <p className="text-xs text-gray-600">เบอร์ภายใน: 1100, 1101</p>
-                </div>
-                <div className="p-3 bg-slate-900 text-white rounded-xl group-hover:scale-105 transition-transform">
-                  <PhoneCall className="w-5 h-5" />
-                </div>
-              </a>
-
-              <a
-                href="tel:0891234567"
-                className="p-4 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-2xl flex items-center justify-between transition-all group shadow-2xs"
-              >
-                <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Safety Officer</span>
-                  <h4 className="text-base font-black text-gray-900">เจ้าหน้าที่ความปลอดภัย (จป.)</h4>
-                  <p className="text-xs text-gray-600">ฝ่ายสิ่งแวดล้อมและความปลอดภัย (EHS)</p>
-                </div>
-                <div className="p-3 bg-[#d32f2f] text-white rounded-xl group-hover:scale-105 transition-transform">
                   <PhoneCall className="w-5 h-5" />
                 </div>
               </a>

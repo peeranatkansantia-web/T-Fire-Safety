@@ -75,13 +75,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     if (verifyPin(pinInput)) {
       triggerSuccess();
     } else {
-      setError(isTh ? 'รหัส PIN ไม่ถูกต้อง (รหัสเริ่มต้น: 1234)' : 'Incorrect PIN (Default: 1234)');
+      setError(isTh ? 'รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง' : 'Incorrect PIN, please try again');
     }
-  };
-
-  const handleQuickDemoAccess = () => {
-    setPinInput(adminPin || '1234');
-    setTimeout(triggerSuccess, 100);
   };
 
   return (
@@ -115,7 +110,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
           <div className="space-y-1 text-center">
             <label className="text-xs font-bold text-gray-700 block">
-              {isTh ? 'กรุณากรอกรหัส PIN (4-6 หลัก):' : 'Enter Admin Security PIN:'}
+              {isTh ? 'กรุณากรอกรหัส PIN เจ้าหน้าที่:' : 'Enter Staff Security PIN:'}
             </label>
 
             {/* Visual PIN Dots / Box */}
@@ -150,7 +145,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               </p>
             ) : (
               <p className="text-[11px] text-gray-400">
-                {isTh ? 'รหัสเริ่มต้นของระบบคือ 1234' : 'Default system PIN is 1234'}
+                {isTh ? 'ระบบความปลอดภัยสำหรับเจ้าหน้าที่ตรวจเช็ก' : 'Restricted to authorized safety officers'}
               </p>
             )}
           </div>
@@ -180,19 +175,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           <div className="space-y-2 pt-2">
             <button
               type="submit"
-              className="w-full py-3 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition-colors"
+              className="w-full py-3 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition-colors active:scale-[0.99]"
             >
               <KeyRound className="w-4 h-4" />
               <span>{isTh ? 'ยืนยันเข้าสู่ระบบผู้ดูแล' : 'Login to Admin Portal'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleQuickDemoAccess}
-              className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-200 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{isTh ? '⚡ ล็อกอินทันทีด้วยรหัสเริ่มต้น (1234)' : '⚡ Quick Demo Login (1234)'}</span>
             </button>
           </div>
         </form>

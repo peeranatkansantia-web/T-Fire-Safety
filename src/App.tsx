@@ -65,16 +65,16 @@ export function App() {
   const [lang, setLang] = useState<Language>('th');
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   
-  // Dual-view mode state: 'admin' (Safety Management) | 'public' (General Employee & Public)
+  // Dual-view mode state: 'public' (General Employee & Public default) | 'admin' (Safety Management)
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('view') === 'public') return 'public';
       if (urlParams.get('view') === 'admin') return 'admin';
+      if (urlParams.get('view') === 'public') return 'public';
       const saved = localStorage.getItem('firesafe_view_mode');
-      return (saved as ViewMode) || 'admin';
+      return (saved as ViewMode) || 'public';
     } catch {
-      return 'admin';
+      return 'public';
     }
   });
 

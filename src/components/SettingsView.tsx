@@ -631,11 +631,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div className="flex items-center gap-2">
                 <input
-                  type="text"
+                  type="password"
                   maxLength={8}
                   value={localPin}
                   onChange={(e) => setLocalPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="1234"
+                  placeholder="••••"
                   className="w-24 px-3 py-1.5 bg-white border border-gray-300 rounded-xl text-center font-mono font-bold text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30"
                 />
                 <button
@@ -655,7 +655,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </div>
             <p className="text-[10px] text-gray-400">
-              {isTh ? '💡 รหัสเริ่มต้นของระบบคือ 1234 (ความยาว 4-8 หลัก)' : '💡 Default system PIN is 1234 (4-8 numeric digits)'}
+              {isTh ? '💡 กำหนดรหัส PIN ตัวเลขความยาว 4-8 หลักสำหรับการเข้าถึงของเจ้าหน้าที่' : '💡 Configure a 4-8 digit numeric PIN for authorized staff access'}
             </p>
           </div>
 
