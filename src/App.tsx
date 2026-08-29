@@ -71,8 +71,12 @@ export function App() {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('view') === 'admin') return 'admin';
       if (urlParams.get('view') === 'public') return 'public';
-      const saved = localStorage.getItem('firesafe_view_mode');
-      return (saved as ViewMode) || 'public';
+      
+      // Use sessionStorage for temporary session only; default to 'public' for all visitors
+      const sessionView = sessionStorage.getItem('firesafe_view_mode');
+      if (sessionView === 'admin') return 'admin';
+      
+      return 'public';
     } catch {
       return 'public';
     }
@@ -502,6 +506,7 @@ export function App() {
   const handleSwitchToPublicView = () => {
     setViewMode('public');
     try {
+      sessionStorage.setItem('firesafe_view_mode', 'public');
       localStorage.setItem('firesafe_view_mode', 'public');
     } catch {}
   };
@@ -518,6 +523,7 @@ export function App() {
   const handleAdminLoginSuccess = () => {
     setViewMode('admin');
     try {
+      sessionStorage.setItem('firesafe_view_mode', 'admin');
       localStorage.setItem('firesafe_view_mode', 'admin');
     } catch {}
     if (pendingAdminAction?.type === 'inspect' && pendingAdminAction.unitId) {
