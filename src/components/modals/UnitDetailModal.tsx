@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { X, Flame, ShieldCheck, QrCode, MapPin, Edit3, Save, Trash2, Building2, Mail, MessageSquare } from 'lucide-react';
-import { ExtinguisherUnit, ExtinguisherType, ExtinguisherStatus, Language } from '../../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Flame, ShieldCheck, QrCode, MapPin, Edit3, Save, Trash2, Building2, Mail, MessageSquare, History, CheckCircle2, AlertCircle, FileText, Download, Printer, ExternalLink } from 'lucide-react';
+import QRCode from 'qrcode';
+import { ExtinguisherUnit, ExtinguisherType, ExtinguisherStatus, InspectionRecord, Language } from '../../types';
 import { LineNotificationModal } from './LineNotificationModal';
 
 interface UnitDetailModalProps {
@@ -8,6 +9,7 @@ interface UnitDetailModalProps {
   onClose: () => void;
   lang: Language;
   unit: ExtinguisherUnit | null;
+  records?: InspectionRecord[];
   onOpenQr: (unit: ExtinguisherUnit) => void;
   onOpenNewInspection: () => void;
   onUpdateUnit?: (updatedUnit: ExtinguisherUnit) => void;
@@ -19,6 +21,7 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
   onClose,
   lang,
   unit,
+  records = [],
   onOpenQr,
   onOpenNewInspection,
   onUpdateUnit,
@@ -40,6 +43,12 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
   const [lastInspectionDate, setLastInspectionDate] = useState(unit.lastInspectionDate);
   const [nextDueDate, setNextDueDate] = useState(unit.nextDueDate);
   const [customQrData, setCustomQrData] = useState(unit.customQrData || '');
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+
+  // Unit-specific inspection history records
+  const unitHistoryRecords = useMemo(() => {
+    return records.filter(r => r.extinguisherId === unit.id);
+  }, [records, unit.id]);
 
   useEffect(() => {
     if (unit) {
@@ -53,6 +62,17 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
       setLastInspectionDate(unit.lastInspectionDate);
       setNextDueDate(unit.nextDueDate);
       setCustomQrData(unit.customQrData || '');
+
+      // Generate instant QR Code
+      const origin = window.location.origin;
+      const pathname = window.location.pathname;
+      const payload = unit.customQrData || `${origin}${pathname}?unit=${encodeURIComponent(unit.id)}&action=inspect`;
+      QRCode.toDataURL(payload, {
+        width: 180,
+        margin: 1,
+        color: { dark: '#111827', light: '#ffffff' },
+        errorCorrectionLevel: 'H'
+      }).then(url => setQrDataUrl(url)).catch(() => {});
       setIsEditing(false);
     }
   }, [unit]);
@@ -338,6 +358,109 @@ export const UnitDetailModal: React.FC<UnitDetailModalProps> = ({
               </div>
               <p className="font-bold text-gray-900 text-xs">{isTh ? unit.buildingTh : unit.building}</p>
               <p className="text-gray-500 text-xs">{isTh ? unit.roomLocationTh : unit.roomLocation} (ชั้น {unit.floor})</p>
+            </div>
+
+            {/* Extinguisher QR Code Sticker Card */}
+            <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-md">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-[#d32f2f]" />
+                  <span className="font-extrabold text-xs text-white">
+                    {isTh ? 'ป้าย QR Code ประจำถัง (Direct Access Tag)' : 'Extinguisher QR Access Tag'}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-red-400 bg-red-950/60 px-2 py-0.5 rounded border border-red-800">
+                  {unit.id}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3.5">
+                <div className="w-24 h-24 bg-white p-1.5 rounded-xl shrink-0 flex items-center justify-center shadow-inner">
+                  {qrDataUrl ? (
+                    <img src={qrDataUrl} alt={`QR Code ${unit.id}`} className="w-full h-full object-contain" />
+                  ) : (
+                    <QrCode className="w-8 h-8 text-gray-400" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0 space-y-1.5 text-left">
+                  <p className="text-[11px] text-slate-300 leading-tight">
+                    {isTh ? 'สแกนป้ายนี้เพื่อเข้าถึงข้อมูล สเปกถัง และประวัติตรวจเช็กได้ทันทีโดยไม่ต้องค้นหา' : 'Scan this QR code on-site to view specs and log 7-point audit without searching.'}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenQr(unit);
+                        onClose();
+                      }}
+                      className="px-2.5 py-1 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-[10px] rounded-lg flex items-center gap-1 shadow-xs transition-colors"
+                    >
+                      <Printer className="w-3 h-3" />
+                      <span>{isTh ? 'พิมพ์ป้ายสติกเกอร์' : 'Print Sticker'}</span>
+                    </button>
+                    {qrDataUrl && (
+                      <a
+                        href={qrDataUrl}
+                        download={`QR_${unit.id}.png`}
+                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[10px] rounded-lg flex items-center gap-1 border border-slate-700 transition-colors"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>PNG</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Past Inspection History Log for this Extinguisher */}
+            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-2 text-left">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5 text-[#d32f2f]" />
+                  <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">
+                    {isTh ? `ประวัติการตรวจสอบย้อนหลัง (${unitHistoryRecords.length} ครั้ง)` : `Inspection History Log (${unitHistoryRecords.length})`}
+                  </span>
+                </div>
+                {unitHistoryRecords.length > 0 && (
+                  <span className="text-[10px] text-emerald-700 font-bold">
+                    {isTh ? 'ล่าสุด: ' + unitHistoryRecords[0].date : 'Latest: ' + unitHistoryRecords[0].date}
+                  </span>
+                )}
+              </div>
+
+              {unitHistoryRecords.length === 0 ? (
+                <div className="p-3 bg-white rounded-xl border border-dashed border-gray-300 text-center text-gray-400 text-xs">
+                  <FileText className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                  <p>{isTh ? 'ยังไม่มีประวัติการตรวจสอบสำหรับถังนี้' : 'No inspection records yet'}</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {unitHistoryRecords.map(rec => (
+                    <div key={rec.id} className="p-2 bg-white rounded-xl border border-gray-200 text-xs flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-gray-900">{rec.date}</span>
+                          <span className="text-[10px] text-gray-400">({rec.time})</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 truncate">
+                          ผู้ตรวจ: {isTh ? rec.inspectorNameTh || rec.inspectorName : rec.inspectorName} ({rec.inspectorBadge})
+                          {rec.notes && ` • "${isTh ? rec.notesTh || rec.notes : rec.notes}"`}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                        rec.status === 'passed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        rec.status === 'failed' ? 'bg-red-50 text-red-700 border border-red-200' :
+                        'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {rec.status === 'passed' ? (isTh ? 'ผ่าน' : 'Passed') :
+                         rec.status === 'failed' ? (isTh ? 'ไม่ผ่าน' : 'Failed') : (isTh ? 'ส่งซ่อม' : 'Maintenance')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Quick Inspection Guide Card */}

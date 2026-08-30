@@ -59,6 +59,8 @@ import {
   subscribeToAppSettings,
   saveAppSettingsToFirebase,
   uploadAllLocalDataToCloud,
+  subscribeToPublicReports,
+  addPublicReportToFirebase,
 } from './firebase';
 
 export function App() {
@@ -72,7 +74,10 @@ export function App() {
       if (urlParams.get('view') === 'admin') return 'admin';
       if (urlParams.get('view') === 'public') return 'public';
       
-      // Use sessionStorage for temporary session only; default to 'public' for all visitors
+      // Check saved preference or session
+      const savedView = localStorage.getItem('firesafe_view_mode');
+      if (savedView === 'admin' || savedView === 'public') return savedView as ViewMode;
+
       const sessionView = sessionStorage.getItem('firesafe_view_mode');
       if (sessionView === 'admin') return 'admin';
       
@@ -196,10 +201,7 @@ export function App() {
       (units) => {
         if (units && units.length > 0) {
           setExtinguishers(units);
-        } else if (isInitialCheckDone) {
-          setExtinguishers([]);
         }
-        isInitialCheckDone = true;
         setFirebaseConnected(true);
       },
       (err) => {
@@ -210,7 +212,9 @@ export function App() {
 
     const unsubInsp = subscribeToInspections(
       (recs) => {
-        setRecords(recs);
+        if (recs) {
+          setRecords(recs);
+        }
       },
       () => setFirebaseConnected(false)
     );
@@ -254,12 +258,22 @@ export function App() {
       }
     );
 
+    const unsubReports = subscribeToPublicReports(
+      (reports) => {
+        if (reports && reports.length > 0) {
+          setPublicReports(reports);
+        }
+      },
+      () => setFirebaseConnected(false)
+    );
+
     return () => {
       unsubExt();
       unsubInsp();
       unsubBld();
       unsubLogs();
       unsubSettings();
+      unsubReports();
     };
   }, []);
 
@@ -445,6 +459,8 @@ export function App() {
   const [publicActiveUnit, setPublicActiveUnit] = useState<ExtinguisherUnit | null>(null);
 
   // Auto-detect unit from URL query (?unit=FE-2041 or ?inspect=FE-2041 or hash #unit=FE-2041)
+  const initialUrlHandledRef = React.useRef(false);
+
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -482,17 +498,21 @@ export function App() {
         if (found) {
           setPublicActiveUnit(found);
           setScannedLandingUnit(found);
-          try {
-            window.history.replaceState({}, '', window.location.pathname);
-          } catch {}
 
-          if (requestedView === 'admin' || viewMode === 'admin') {
-            if (isInspect) {
-              setInspectionUnitId(found.id);
-              setIsNewInspectionOpen(true);
-            } else {
-              setSelectedUnitDetail(found);
-              setIsUnitDetailOpen(true);
+          if (!initialUrlHandledRef.current) {
+            initialUrlHandledRef.current = true;
+            if (requestedView === 'admin' || viewMode === 'admin') {
+              if (isInspect) {
+                setInspectionUnitId(found.id);
+                setIsNewInspectionOpen(true);
+              } else {
+                setSelectedUnitDetail(found);
+                setIsUnitDetailOpen(true);
+              }
+            } else if (isInspect) {
+              // If public scanned an inspection QR, prepare inspection action upon PIN prompt
+              setPendingAdminAction({ type: 'inspect', unitId: found.id });
+              setIsAdminLoginOpen(true);
             }
           }
         }
@@ -500,7 +520,7 @@ export function App() {
     } catch (e) {
       console.error('URL parse error:', e);
     }
-  }, [extinguishers]);
+  }, [extinguishers, viewMode]);
 
   // Dual View Mode Transitions
   const handleSwitchToPublicView = () => {
@@ -546,6 +566,7 @@ export function App() {
     } catch (e) {
       console.error(e);
     }
+    addPublicReportToFirebase(newReport).catch(console.error);
 
     // Add activity log for admin
     const newLog: ActivityLog = {
@@ -1026,6 +1047,7 @@ export function App() {
         lang={lang}
         unit={qrUnit}
         extinguishers={extinguishers}
+        records={records}
         mode={qrMode}
         onScanSuccess={handleQrScanSuccess}
         onUpdateUnit={handleUpdateUnit}
@@ -1054,6 +1076,7 @@ export function App() {
         onClose={() => setIsUnitDetailOpen(false)}
         lang={lang}
         unit={selectedUnitDetail}
+        records={records}
         onOpenQr={handleOpenQrCode}
         onOpenNewInspection={() => {
           if (selectedUnitDetail) {

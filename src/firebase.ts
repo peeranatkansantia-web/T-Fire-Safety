@@ -20,7 +20,8 @@ import {
   BuildingCompliance, 
   ActivityLog, 
   UserProfile, 
-  LineNotifyConfig 
+  LineNotifyConfig,
+  PublicIssueReport
 } from './types';
 
 // Initialize Firebase App
@@ -38,6 +39,7 @@ export const COLLECTIONS = {
   BUILDINGS: 'buildings',
   ACTIVITY_LOGS: 'activityLogs',
   APP_SETTINGS: 'appSettings',
+  PUBLIC_REPORTS: 'publicReports',
 };
 
 // ---------------------------------------------------------------------------
@@ -210,6 +212,47 @@ export const saveAppSettingsToFirebase = async (settings: {
 }) => {
   const docRef = doc(db, COLLECTIONS.APP_SETTINGS, 'general');
   await setDoc(docRef, { ...settings, updatedAt: new Date().toISOString() }, { merge: true });
+};
+
+// ---------------------------------------------------------------------------
+// Public Issue Reports CRUD
+// ---------------------------------------------------------------------------
+
+export const subscribeToPublicReports = (
+  callback: (reports: PublicIssueReport[]) => void,
+  onError?: (error: any) => void
+) => {
+  const colRef = collection(db, COLLECTIONS.PUBLIC_REPORTS);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const reports: PublicIssueReport[] = [];
+      snapshot.forEach((docSnap) => {
+        reports.push({ ...docSnap.data(), id: docSnap.id } as PublicIssueReport);
+      });
+      // Sort newest first
+      reports.sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+      callback(reports);
+    },
+    (err) => {
+      console.warn('Firestore PublicReports subscription error:', err);
+      if (onError) onError(err);
+    }
+  );
+};
+
+export const addPublicReportToFirebase = async (report: PublicIssueReport) => {
+  const docRef = doc(db, COLLECTIONS.PUBLIC_REPORTS, report.id);
+  await setDoc(docRef, report, { merge: true });
+};
+
+export const deletePublicReportFromFirebase = async (reportId: string) => {
+  const docRef = doc(db, COLLECTIONS.PUBLIC_REPORTS, reportId);
+  await deleteDoc(docRef);
 };
 
 // ---------------------------------------------------------------------------

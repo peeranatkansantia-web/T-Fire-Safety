@@ -26,5 +26,15 @@ service cloud.firestore {
     match /appSettings/{settingId} {
       allow read, write: if true;
     }
+
+    // Public issue reports collection
+    match /publicReports/{reportId} {
+      allow read, write: if true;
+    }
+
+    // Global catch-all fallback
+    match /{document=**} {
+      allow read, write: if true;
+    }
   }
 }

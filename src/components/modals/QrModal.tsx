@@ -26,11 +26,17 @@ import {
   Play,
   Volume2,
   VolumeX,
-  Smartphone
+  Smartphone,
+  Calendar,
+  Clock,
+  MapPin,
+  History,
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Html5Qrcode } from 'html5-qrcode';
-import { ExtinguisherUnit, Language } from '../../types';
+import { ExtinguisherUnit, InspectionRecord, Language } from '../../types';
 
 interface QrModalProps {
   isOpen: boolean;
@@ -38,6 +44,7 @@ interface QrModalProps {
   lang: Language;
   unit: ExtinguisherUnit | null;
   extinguishers?: ExtinguisherUnit[];
+  records?: InspectionRecord[];
   onScanSuccess?: (unitId: string, action?: 'inspect' | 'detail') => void;
   onUpdateUnit?: (updatedUnit: ExtinguisherUnit) => void;
   mode?: 'view' | 'scanner';
@@ -75,6 +82,7 @@ export const QrModal: React.FC<QrModalProps> = ({
   lang,
   unit,
   extinguishers = [],
+  records = [],
   onScanSuccess,
   onUpdateUnit,
   mode = 'view',
@@ -106,6 +114,18 @@ export const QrModal: React.FC<QrModalProps> = ({
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   const activeUnit = extinguishers.find(u => u.id === selectedUnitId) || unit || extinguishers[0] || null;
+
+  // Active unit inspection history
+  const activeUnitRecords = useMemo(() => {
+    if (!activeUnit) return [];
+    return records.filter(r => r.extinguisherId === activeUnit.id);
+  }, [records, activeUnit]);
+
+  // Detected unit inspection history (in scanner tab)
+  const detectedUnitRecords = useMemo(() => {
+    if (!detectedUnit) return [];
+    return records.filter(r => r.extinguisherId === detectedUnit.id);
+  }, [records, detectedUnit]);
 
   // Custom QR Payload state
   const [customQrPayload, setCustomQrPayload] = useState<string>('');
@@ -702,6 +722,139 @@ export const QrModal: React.FC<QrModalProps> = ({
 
               </div>
 
+              {/* Equipment Specifications & Inspection History Section */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-[#d32f2f]" />
+                    <h4 className="font-extrabold text-xs sm:text-sm text-slate-900">
+                      {isTh ? 'ข้อมูลจำเพาะประจำถัง & ประวัติการตรวจสอบ' : 'Equipment Specifications & Inspection Log'}
+                    </h4>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    activeUnit.status === 'normal' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                    activeUnit.status === 'due_soon' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                    'bg-red-100 text-red-800 border border-red-200'
+                  }`}>
+                    {activeUnit.status === 'normal' ? (isTh ? '✅ สภาพปกติ พร้อมใช้' : 'Normal / Ready') :
+                     activeUnit.status === 'due_soon' ? (isTh ? '⚠️ ใกล้กำหนดตรวจ' : 'Due Soon') :
+                     (isTh ? '🚨 หมดอายุ / ส่งซ่อม' : 'Expired / Maintenance')}
+                  </span>
+                </div>
+
+                {/* 4 Key Metric Tiles */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {isTh ? 'ประเภทถัง / สาร' : 'Extinguisher Type'}
+                    </span>
+                    <span className="font-extrabold text-xs text-slate-900 uppercase block mt-0.5">
+                      {activeUnit.type.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {isTh ? 'ตำแหน่งติดตั้ง' : 'Installation Location'}
+                    </span>
+                    <span className="font-extrabold text-xs text-slate-900 truncate block mt-0.5" title={isTh ? `${activeUnit.buildingTh || activeUnit.building} (${activeUnit.roomLocationTh || activeUnit.roomLocation})` : `${activeUnit.building} (${activeUnit.roomLocation})`}>
+                      {isTh ? activeUnit.buildingTh || activeUnit.building : activeUnit.building} (ชั้น {activeUnit.floor})
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {isTh ? 'ตรวจล่าสุด' : 'Last Inspection'}
+                    </span>
+                    <span className="font-bold text-xs text-slate-800 block mt-0.5">
+                      {activeUnit.lastInspectionDate || '-'}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {isTh ? 'กำหนดตรวจถัดไป' : 'Next Due Date'}
+                    </span>
+                    <span className="font-extrabold text-xs text-[#d32f2f] block mt-0.5">
+                      {activeUnit.nextDueDate || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Past Inspection History Log for this Extinguisher */}
+                <div className="pt-2 border-t border-slate-200/80">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <History className="w-3.5 h-3.5 text-[#d32f2f]" />
+                      <span>{isTh ? `ประวัติการตรวจสอบย้อนหลัง (${activeUnitRecords.length} รายการ):` : `Inspection History (${activeUnitRecords.length} records):`}</span>
+                    </span>
+                    {activeUnitRecords.length > 0 && (
+                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        {isTh ? 'บันทึกครบถ้วนตามมาตรฐาน' : 'Verified'}
+                      </span>
+                    )}
+                  </div>
+
+                  {activeUnitRecords.length === 0 ? (
+                    <div className="p-3 bg-white rounded-xl border border-dashed border-slate-300 text-center text-slate-400 text-xs">
+                      <FileText className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                      <p>{isTh ? 'ยังไม่มีประวัติการบันทึกตรวจเช็กสำหรับถังนี้' : 'No previous inspection history recorded for this unit'}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleTestQrAction('inspect')}
+                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#d32f2f] hover:underline"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>{isTh ? '+ เริ่มบันทึกการตรวจเช็กครั้งแรก' : '+ Log First Inspection'}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {activeUnitRecords.slice(0, 5).map((rec) => (
+                        <div key={rec.id} className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs flex items-center justify-between gap-2 shadow-2xs">
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900">{rec.date}</span>
+                              <span className="text-[10px] text-slate-400">{rec.time}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-600 truncate">
+                              👮‍♂️ {isTh ? rec.inspectorNameTh || rec.inspectorName : rec.inspectorName} ({rec.inspectorBadge})
+                              {rec.notes && ` • "${isTh ? rec.notesTh || rec.notes : rec.notes}"`}
+                            </p>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                              rec.status === 'passed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                              rec.status === 'failed' ? 'bg-red-50 text-red-700 border border-red-200' :
+                              'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              {rec.status === 'passed' ? (isTh ? 'ผ่าน (Pass)' : 'Passed') :
+                               rec.status === 'failed' ? (isTh ? 'ไม่ผ่าน' : 'Failed') : (isTh ? 'ส่งซ่อม' : 'Maintenance')}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Direct 1-Click Action for Staff */}
+                <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2">
+                  <p className="text-[10px] text-slate-500">
+                    💡 {isTh ? 'กดปุ่มเพื่อเริ่มตรวจ 7 จุดของถังนี้ได้ทันทีโดยไม่ต้องค้นหา' : 'Launch direct 7-point audit for this asset'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleTestQrAction('inspect')}
+                    className="w-full sm:w-auto px-4 py-2 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>{isTh ? '⚡ บันทึกการตรวจ 7 จุดของถังนี้ทันที' : 'Inspect This Unit Now'}</span>
+                  </button>
+                </div>
+              </div>
+
               {/* QR Payload Settings & Presets */}
               <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200 text-left space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -997,44 +1150,79 @@ export const QrModal: React.FC<QrModalProps> = ({
 
               {/* Detected Unit Card (Instant Action Popup) */}
               {detectedUnit && (
-                <div className="p-3.5 bg-emerald-50 border-2 border-emerald-400 rounded-2xl animate-in zoom-in-95 space-y-2.5 shadow-sm text-left">
+                <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl animate-in zoom-in-95 space-y-3 shadow-md text-left">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-2 bg-emerald-500 text-white rounded-xl shrink-0">
+                      <div className="p-2 bg-emerald-500 text-white rounded-xl shrink-0 shadow-xs">
                         <CheckCircle2 className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-extrabold text-sm text-emerald-950">{detectedUnit.id}</span>
-                          <span className="text-[10px] bg-emerald-200/70 text-emerald-800 font-bold px-1.5 py-0.5 rounded uppercase">
-                            {detectedUnit.type}
+                          <span className="font-black text-base text-emerald-950">{detectedUnit.id}</span>
+                          <span className="text-[10px] bg-emerald-200/90 text-emerald-900 font-extrabold px-2 py-0.5 rounded-full uppercase">
+                            {detectedUnit.type.replace('_', ' ')}
                           </span>
                         </div>
-                        <p className="text-xs text-emerald-800 font-medium">
-                          {isTh ? detectedUnit.buildingTh || detectedUnit.building : detectedUnit.building} ({isTh ? detectedUnit.roomLocationTh || detectedUnit.roomLocation : detectedUnit.roomLocation})
+                        <p className="text-xs text-emerald-900 font-semibold mt-0.5">
+                          📍 {isTh ? detectedUnit.buildingTh || detectedUnit.building : detectedUnit.building} ({isTh ? detectedUnit.roomLocationTh || detectedUnit.roomLocation : detectedUnit.roomLocation}) ชั้น {detectedUnit.floor}
                         </p>
                       </div>
                     </div>
-                    <span className="text-[11px] font-mono font-bold text-gray-500">{detectedUnit.assetId}</span>
+                    <span className="text-xs font-mono font-bold text-gray-500 bg-white/80 px-2 py-0.5 rounded-md border border-emerald-200">
+                      {detectedUnit.assetId}
+                    </span>
                   </div>
+
+                  {/* Scanned Unit Details: Expiry, Inspection history count, and status */}
+                  <div className="grid grid-cols-3 gap-2 bg-white/90 p-2.5 rounded-xl border border-emerald-200 text-xs">
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase block">{isTh ? 'กำหนดตรวจรอบนี้' : 'Due Date'}</span>
+                      <span className="font-extrabold text-[#d32f2f] text-xs block">{detectedUnit.nextDueDate}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase block">{isTh ? 'ตรวจล่าสุด' : 'Last Inspection'}</span>
+                      <span className="font-bold text-gray-700 text-xs block">{detectedUnit.lastInspectionDate}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase block">{isTh ? 'ประวัติตรวจย้อนหลัง' : 'History Logs'}</span>
+                      <span className="font-extrabold text-emerald-700 text-xs block">
+                        {detectedUnitRecords.length} {isTh ? 'ครั้ง' : 'records'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quick Inspection History Preview */}
+                  {detectedUnitRecords.length > 0 && (
+                    <div className="bg-white/70 p-2 rounded-lg border border-emerald-200 text-[11px] text-gray-700">
+                      <span className="font-bold text-emerald-950 block mb-0.5">
+                        🕒 {isTh ? 'ผลตรวจล่าสุด:' : 'Latest Inspection Result:'}
+                      </span>
+                      <p className="truncate text-gray-600">
+                        {detectedUnitRecords[0].date} โดย {isTh ? detectedUnitRecords[0].inspectorNameTh || detectedUnitRecords[0].inspectorName : detectedUnitRecords[0].inspectorName} — 
+                        <strong className={detectedUnitRecords[0].status === 'passed' ? 'text-emerald-700' : 'text-red-700'}>
+                          {detectedUnitRecords[0].status === 'passed' ? ' ผ่านเกณฑ์ (Passed)' : ' พบข้อบกพร่อง'}
+                        </strong>
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => handleProceedWithUnit('inspect')}
-                      className="py-2.5 px-3 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors"
+                      className="py-2.5 px-3 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors active:scale-98"
                     >
                       <ShieldCheck className="w-4 h-4" />
-                      <span>{isTh ? 'บันทึกตรวจเช็ก 7 จุด' : 'Inspect Now (7-Point)'}</span>
+                      <span>{isTh ? '⚡ เริ่มตรวจ 7 จุดทันที' : 'Inspect Now (7-Point)'}</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleProceedWithUnit('detail')}
-                      className="py-2.5 px-3 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                      className="py-2.5 px-3 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                     >
-                      <span>{isTh ? 'ดูประวัติและข้อมูล' : 'View Details'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <FileText className="w-4 h-4" />
+                      <span>{isTh ? 'ดูประวัติ & ข้อมูลเต็ม' : 'View History & Specs'}</span>
                     </button>
                   </div>
                 </div>

@@ -386,6 +386,15 @@ export const ExtinguishersView: React.FC<ExtinguishersViewProps> = ({
                       <td className="px-3.5 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            onClick={() => onOpenQrCode(unit)}
+                            className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors inline-flex items-center gap-1"
+                            title={isTh ? 'เปิดป้าย QR Code ประจำถังนี้' : 'Open Unit QR Code'}
+                          >
+                            <QrCode className="w-3.5 h-3.5 text-[#d32f2f]" />
+                            <span>QR</span>
+                          </button>
+
+                          <button
                             onClick={() => onViewUnitDetail(unit)}
                             className="px-2.5 py-1 text-xs font-semibold text-[#d32f2f] bg-red-50 hover:bg-red-100 rounded-lg transition-colors inline-flex items-center gap-1"
                           >

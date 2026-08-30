@@ -55,6 +55,14 @@ export const PublicView: React.FC<PublicViewProps> = ({
   const [activeTab, setActiveTab] = useState<'unit' | 'all_units' | 'emergency_guide' | 'contacts'>('unit');
   const [selectedUnitState, setSelectedUnitState] = useState<ExtinguisherUnit | null>(initialActiveUnit || extinguishers[0] || null);
 
+  // Sync state when active unit changes from parent or URL/QR scan
+  React.useEffect(() => {
+    if (initialActiveUnit) {
+      setSelectedUnitState(initialActiveUnit);
+      setActiveTab('unit');
+    }
+  }, [initialActiveUnit]);
+
   const activeUnit = selectedUnitState || initialActiveUnit || extinguishers[0] || null;
 
   // Unique buildings
@@ -266,6 +274,40 @@ export const PublicView: React.FC<PublicViewProps> = ({
 
       {/* Main Container */}
       <main className="max-w-5xl mx-auto px-4 py-5 w-full flex-1 space-y-4">
+
+        {/* Admin / Staff Switch Notice Banner */}
+        <div className="bg-slate-900 text-white rounded-2xl p-4 border border-slate-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-red-500/20 text-red-400 rounded-xl border border-red-500/30 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-sm text-white">
+                  {isTh ? 'โหมดบุคคลทั่วไป (Public Portal)' : 'Public Visitor Portal'}
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {isTh ? 'เชื่อมต่อ Cloud Firestore แล้ว' : 'Cloud Firestore Synced'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                {isTh 
+                  ? 'ข้อมูลถังและประวัติตรวจเช็กถูกบันทึกไว้ในระบบ หากคุณต้องการดูตารางจัดการถังทั้งหมด, กราฟ Dashboard, หรือแก้ไขข้อมูล กรุณากดเข้าสู่ระบบเจ้าหน้าที่'
+                  : 'All units & inspection data are stored in Cloud Firestore. To access complete unit tables, analytics dashboard, or management tools, switch to Admin mode.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onRequestAdminLogin('manage')}
+            className="shrink-0 w-full sm:w-auto px-4 py-2.5 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-98"
+          >
+            <Lock className="w-4 h-4" />
+            <span>{isTh ? '🔒 เข้าสู่ระบบเจ้าหน้าที่ (Admin)' : '🔒 Staff Admin Login'}</span>
+          </button>
+        </div>
         
         {/* Navigation Tabs */}
         <div className="flex bg-white p-1 rounded-2xl border border-gray-200 text-xs font-bold shadow-2xs">
