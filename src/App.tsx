@@ -68,19 +68,11 @@ export function App() {
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   
   // Dual-view mode state: 'public' (General Employee & Public default) | 'admin' (Safety Management)
+  // Always defaults to 'public' when accessing the link
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('view') === 'admin') return 'admin';
-      if (urlParams.get('view') === 'public') return 'public';
-      
-      // Check saved preference or session
-      const savedView = localStorage.getItem('firesafe_view_mode');
-      if (savedView === 'admin' || savedView === 'public') return savedView as ViewMode;
-
-      const sessionView = sessionStorage.getItem('firesafe_view_mode');
-      if (sessionView === 'admin') return 'admin';
-      
       return 'public';
     } catch {
       return 'public';
@@ -240,20 +232,26 @@ export function App() {
     const unsubSettings = subscribeToAppSettings(
       (settings) => {
         if (settings.profile) {
-          setProfile(settings.profile);
-          try {
-            localStorage.setItem('firesafe_profile', JSON.stringify(settings.profile));
-          } catch (e) {
-            console.error(e);
-          }
+          setProfile(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(settings.profile)) return prev;
+            try {
+              localStorage.setItem('firesafe_profile', JSON.stringify(settings.profile));
+            } catch (e) {
+              console.error(e);
+            }
+            return settings.profile!;
+          });
         }
         if (settings.lineConfig) {
-          setLineConfig(settings.lineConfig);
-          try {
-            localStorage.setItem('firesafe_line_config', JSON.stringify(settings.lineConfig));
-          } catch (e) {
-            console.error(e);
-          }
+          setLineConfig(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(settings.lineConfig)) return prev;
+            try {
+              localStorage.setItem('firesafe_line_config', JSON.stringify(settings.lineConfig));
+            } catch (e) {
+              console.error(e);
+            }
+            return settings.lineConfig!;
+          });
         }
       }
     );
@@ -325,6 +323,38 @@ export function App() {
       console.error(e);
     }
   }, [lineConfig]);
+
+  const handleSaveProfileSettings = async (
+    updatedProfile: UserProfile,
+    updatedLineConfig?: LineNotifyConfig
+  ) => {
+    setProfile(updatedProfile);
+    try {
+      localStorage.setItem('firesafe_profile', JSON.stringify(updatedProfile));
+    } catch (e) {
+      console.error(e);
+    }
+
+    const nextLine = updatedLineConfig || lineConfig;
+    if (updatedLineConfig) {
+      setLineConfig(updatedLineConfig);
+      try {
+        localStorage.setItem('firesafe_line_config', JSON.stringify(updatedLineConfig));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    try {
+      await saveAppSettingsToFirebase({
+        profile: updatedProfile,
+        lineConfig: nextLine,
+      });
+      console.log('Profile and line settings saved successfully to Firestore');
+    } catch (err) {
+      console.error('Error writing settings to Firestore:', err);
+    }
+  };
 
   const handleUpdateProfile = (newProfileOrFn: React.SetStateAction<UserProfile>) => {
     setProfile(prev => {
@@ -988,9 +1018,10 @@ export function App() {
                 <SettingsView
                   lang={lang}
                   profile={profile}
-                  setProfile={handleUpdateProfile}
+                  setProfile={setProfile}
+                  onSaveProfile={handleSaveProfileSettings}
                   lineConfig={lineConfig}
-                  setLineConfig={handleUpdateLineConfig}
+                  setLineConfig={setLineConfig}
                   adminPin={adminPin}
                   setAdminPin={handleUpdateAdminPin}
                   onExportFullBackup={handleExportFullBackup}

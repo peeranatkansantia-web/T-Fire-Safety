@@ -28,7 +28,8 @@ import { LineNotificationModal } from './modals/LineNotificationModal';
 interface SettingsViewProps {
   lang: Language;
   profile: UserProfile;
-  setProfile: React.Dispatch<React.SetStateAction<UserProfile>>;
+  setProfile?: React.Dispatch<React.SetStateAction<UserProfile>>;
+  onSaveProfile?: (newProfile: UserProfile, newLineConfig?: LineNotifyConfig) => Promise<void> | void;
   lineConfig?: LineNotifyConfig;
   setLineConfig?: React.Dispatch<React.SetStateAction<LineNotifyConfig>>;
   adminPin?: string;
@@ -46,6 +47,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   lang,
   profile,
   setProfile,
+  onSaveProfile,
   lineConfig = {
     enabled: true,
     channelAccessToken: '',
@@ -68,6 +70,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const isTh = lang === 'th';
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [mfa, setMfa] = useState(profile.mfaEnabled);
   const [localPin, setLocalPin] = useState(adminPin);
   const [pinSaved, setPinSaved] = useState(false);
@@ -82,26 +85,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [localLineConfig, setLocalLineConfig] = useState<LineNotifyConfig>(lineConfig);
 
   const [formData, setFormData] = useState({
-    name: profile.name,
-    nameTh: profile.nameTh,
-    jobTitle: profile.jobTitle,
-    jobTitleTh: profile.jobTitleTh,
-    email: profile.email,
-    department: profile.department,
-    departmentTh: profile.departmentTh,
-    avatarUrl: profile.avatarUrl,
+    name: profile.name || '',
+    nameTh: profile.nameTh || '',
+    jobTitle: profile.jobTitle || '',
+    jobTitleTh: profile.jobTitleTh || '',
+    email: profile.email || '',
+    department: profile.department || '',
+    departmentTh: profile.departmentTh || '',
+    avatarUrl: profile.avatarUrl || '',
+    badgeNumber: profile.badgeNumber || '0882',
   });
 
   useEffect(() => {
     setFormData({
-      name: profile.name,
-      nameTh: profile.nameTh,
-      jobTitle: profile.jobTitle,
-      jobTitleTh: profile.jobTitleTh,
-      email: profile.email,
-      department: profile.department,
-      departmentTh: profile.departmentTh,
-      avatarUrl: profile.avatarUrl,
+      name: profile.name || '',
+      nameTh: profile.nameTh || '',
+      jobTitle: profile.jobTitle || '',
+      jobTitleTh: profile.jobTitleTh || '',
+      email: profile.email || '',
+      department: profile.department || '',
+      departmentTh: profile.departmentTh || '',
+      avatarUrl: profile.avatarUrl || '',
+      badgeNumber: profile.badgeNumber || '0882',
     });
     setMfa(profile.mfaEnabled);
   }, [profile]);
@@ -123,27 +128,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProfile(prev => ({
-      ...prev,
-      name: formData.name,
-      nameTh: formData.nameTh,
-      jobTitle: formData.jobTitle,
-      jobTitleTh: formData.jobTitleTh,
-      email: formData.email,
-      department: formData.department,
-      departmentTh: formData.departmentTh,
-      avatarUrl: formData.avatarUrl,
+    setIsSaving(true);
+    
+    const initials = (formData.nameTh || formData.name || 'SC').slice(0, 2).toUpperCase();
+    const updatedProfile: UserProfile = {
+      ...profile,
+      name: formData.name.trim(),
+      nameTh: formData.nameTh.trim(),
+      jobTitle: formData.jobTitle.trim(),
+      jobTitleTh: formData.jobTitleTh.trim(),
+      email: formData.email.trim(),
+      department: formData.department.trim(),
+      departmentTh: formData.departmentTh.trim(),
+      avatarUrl: formData.avatarUrl.trim(),
+      badgeNumber: formData.badgeNumber.trim(),
+      initials,
       mfaEnabled: mfa,
-    }));
+    };
 
-    if (setLineConfig) {
-      setLineConfig(localLineConfig);
+    try {
+      if (onSaveProfile) {
+        await onSaveProfile(updatedProfile, localLineConfig);
+      } else {
+        if (setProfile) {
+          setProfile(updatedProfile);
+        }
+        if (setLineConfig) {
+          setLineConfig(localLineConfig);
+        }
+      }
+
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+    } catch (err) {
+      console.error('Error saving profile settings:', err);
+    } finally {
+      setIsSaving(false);
     }
-
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
   };
 
   const handleImportJsonFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,6 +295,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={formData.nameTh}
                 onChange={(e) => setFormData({ ...formData, nameTh: e.target.value })}
                 className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                placeholder="เช่น นายสมชาย ใจดี"
               />
             </div>
 
@@ -284,6 +308,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                placeholder="e.g. Somchai Jaidee"
               />
             </div>
 
@@ -296,6 +321,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={formData.jobTitleTh}
                 onChange={(e) => setFormData({ ...formData, jobTitleTh: e.target.value })}
                 className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                placeholder="เช่น เจ้าหน้าที่ความปลอดภัยวิชาชีพ (จป.)"
               />
             </div>
 
@@ -308,6 +334,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={formData.jobTitle}
                 onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
                 className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                placeholder="e.g. Safety & Environment Officer"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-gray-700 mb-1">
+                {isTh ? 'แผนก/หน่วยงาน (ภาษาไทย)' : 'Department / Division (Thai)'}
+              </label>
+              <input
+                type="text"
+                value={formData.departmentTh}
+                onChange={(e) => setFormData({ ...formData, departmentTh: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                placeholder="เช่น สำนักงานสาธารณสุขจังหวัดนครราชสีมา"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-gray-700 mb-1">
+                {isTh ? 'แผนก/หน่วยงาน (English)' : 'Department / Division (English)'}
+              </label>
+              <input
+                type="text"
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                placeholder="e.g. Nakhon Ratchasima Provincial Public Health Office"
               />
             </div>
 
@@ -320,21 +373,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                placeholder="user@organization.go.th"
               />
             </div>
 
             <div>
               <label className="block font-bold text-gray-700 mb-1">
-                {isTh ? 'แผนก/หน่วยงาน' : 'Department / Division'}
+                {isTh ? 'เลขประจำตัวเจ้าหน้าที่ (Badge Number)' : 'Inspector Badge ID'}
               </label>
               <input
                 type="text"
-                value={isTh ? formData.departmentTh : formData.department}
-                onChange={(e) => {
-                  if (isTh) setFormData({ ...formData, departmentTh: e.target.value });
-                  else setFormData({ ...formData, department: e.target.value });
-                }}
-                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-medium"
+                value={formData.badgeNumber}
+                onChange={(e) => setFormData({ ...formData, badgeNumber: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-mono text-xs font-bold"
+                placeholder="เช่น 0882 หรือ JP-01"
               />
             </div>
 
@@ -347,7 +399,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="text"
                   value={formData.avatarUrl}
                   onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
-                  placeholder={isTh ? 'ระบุ URL หรือกดปุ่มอัปโหลดรูป' : 'Paste URL or browse image file'}
+                  placeholder={isTh ? 'ระบุ URL หรือกดปุ่มเลือกรูปเพื่ออัปโหลด' : 'Paste URL or browse image file'}
                   className="flex-1 px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#d32f2f]/30 font-mono text-[11px]"
                 />
                 <label className="cursor-pointer px-4 py-2.5 bg-red-50 hover:bg-red-100 text-[#d32f2f] border border-red-200 font-bold text-xs rounded-xl flex items-center gap-1.5 shrink-0 transition-colors">
@@ -368,10 +420,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="pt-2 text-right">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-[#d32f2f] hover:bg-[#af101a] text-white font-bold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-2"
+              disabled={isSaving}
+              className="px-5 py-2.5 bg-[#d32f2f] hover:bg-[#af101a] disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-2"
             >
-              <Save className="w-4 h-4" />
-              <span>{isTh ? 'บันทึกการเปลี่ยนแปลงโปรไฟล์' : 'Save Changes'}</span>
+              {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <span>{isSaving ? (isTh ? 'กำลังบันทึกข้อมูล...' : 'Saving...') : (isTh ? 'บันทึกข้อมูลโปรไฟล์' : 'Save Profile Changes')}</span>
             </button>
           </div>
         </form>

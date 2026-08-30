@@ -67,11 +67,16 @@ export interface InspectionRecord {
 
 export interface LineNotifyConfig {
   enabled: boolean;
-  tokenOrWebhook: string;
-  channelName: string;
-  notifyOnFailed: boolean;
-  notifyOnDueSoon: boolean;
-  sendPhoto: boolean;
+  channelAccessToken?: string;
+  tokenOrWebhook?: string;
+  targetGroupName?: string;
+  channelName?: string;
+  alertOnFailed?: boolean;
+  notifyOnFailed?: boolean;
+  alertOnMaintenance?: boolean;
+  alertOnExpiring?: boolean;
+  notifyOnDueSoon?: boolean;
+  sendPhoto?: boolean;
 }
 
 export interface BuildingCompliance {
@@ -126,6 +131,8 @@ export interface UserProfile {
   mfaEnabled: boolean;
   department: string;
   departmentTh: string;
+  badgeNumber?: string;
+  initials?: string;
 }
 
 export interface FilterOptions {

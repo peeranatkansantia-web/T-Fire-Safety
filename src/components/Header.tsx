@@ -378,11 +378,17 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               className="flex items-center gap-2 p-1 hover:bg-gray-100 rounded-xl transition-colors"
             >
-              <img
-                src={profile.avatarUrl}
-                alt={profile.name}
-                className="w-9 h-9 rounded-xl object-cover ring-2 ring-[#d32f2f]/20"
-              />
+              {profile.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={profile.name}
+                  className="w-9 h-9 rounded-xl object-cover ring-2 ring-[#d32f2f]/20"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-xl bg-red-100 text-[#d32f2f] font-bold text-xs flex items-center justify-center ring-2 ring-[#d32f2f]/20">
+                  {profile.initials || (profile.nameTh || profile.name || 'SC').slice(0, 2).toUpperCase()}
+                </div>
+              )}
               <div className="hidden xl:block text-left pr-1">
                 <p className="text-xs font-semibold text-gray-900 leading-tight">
                   {isTh ? profile.nameTh : profile.name}
