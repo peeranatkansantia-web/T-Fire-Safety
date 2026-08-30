@@ -43,6 +43,30 @@ export const COLLECTIONS = {
 };
 
 // ---------------------------------------------------------------------------
+// Firestore Data Sanitizer (Removes undefined fields to prevent Firestore SDK errors)
+// ---------------------------------------------------------------------------
+
+export function cleanFirestoreData<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanFirestoreData(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj as any)) {
+      const val = (obj as any)[key];
+      if (val !== undefined) {
+        cleaned[key] = cleanFirestoreData(val);
+      }
+    }
+    return cleaned as T;
+  }
+  return obj;
+}
+
+// ---------------------------------------------------------------------------
 // Extinguishers CRUD
 // ---------------------------------------------------------------------------
 
@@ -69,7 +93,8 @@ export const subscribeToExtinguishers = (
 
 export const saveExtinguisherToFirebase = async (unit: ExtinguisherUnit) => {
   const docRef = doc(db, COLLECTIONS.EXTINGUISHERS, unit.id);
-  await setDoc(docRef, { ...unit, updatedAt: new Date().toISOString() }, { merge: true });
+  const sanitized = cleanFirestoreData({ ...unit, updatedAt: new Date().toISOString() });
+  await setDoc(docRef, sanitized, { merge: true });
 };
 
 export const deleteExtinguisherFromFirebase = async (unitId: string) => {
@@ -110,7 +135,8 @@ export const subscribeToInspections = (
 
 export const addInspectionToFirebase = async (record: InspectionRecord) => {
   const docRef = doc(db, COLLECTIONS.INSPECTIONS, record.id);
-  await setDoc(docRef, { ...record, createdAt: new Date().toISOString() }, { merge: true });
+  const sanitized = cleanFirestoreData({ ...record, createdAt: new Date().toISOString() });
+  await setDoc(docRef, sanitized, { merge: true });
 };
 
 export const deleteInspectionFromFirebase = async (recordId: string) => {
@@ -145,7 +171,8 @@ export const subscribeToBuildings = (
 
 export const saveBuildingToFirebase = async (building: BuildingCompliance) => {
   const docRef = doc(db, COLLECTIONS.BUILDINGS, building.id);
-  await setDoc(docRef, building, { merge: true });
+  const sanitized = cleanFirestoreData(building);
+  await setDoc(docRef, sanitized, { merge: true });
 };
 
 export const deleteBuildingFromFirebase = async (buildingId: string) => {
@@ -180,7 +207,8 @@ export const subscribeToActivityLogs = (
 
 export const addActivityLogToFirebase = async (log: ActivityLog) => {
   const docRef = doc(db, COLLECTIONS.ACTIVITY_LOGS, log.id);
-  await setDoc(docRef, log, { merge: true });
+  const sanitized = cleanFirestoreData(log);
+  await setDoc(docRef, sanitized, { merge: true });
 };
 
 // ---------------------------------------------------------------------------
@@ -211,7 +239,8 @@ export const saveAppSettingsToFirebase = async (settings: {
   lineConfig?: LineNotifyConfig;
 }) => {
   const docRef = doc(db, COLLECTIONS.APP_SETTINGS, 'general');
-  await setDoc(docRef, { ...settings, updatedAt: new Date().toISOString() }, { merge: true });
+  const sanitized = cleanFirestoreData({ ...settings, updatedAt: new Date().toISOString() });
+  await setDoc(docRef, sanitized, { merge: true });
 };
 
 // ---------------------------------------------------------------------------
@@ -247,7 +276,8 @@ export const subscribeToPublicReports = (
 
 export const addPublicReportToFirebase = async (report: PublicIssueReport) => {
   const docRef = doc(db, COLLECTIONS.PUBLIC_REPORTS, report.id);
-  await setDoc(docRef, report, { merge: true });
+  const sanitized = cleanFirestoreData(report);
+  await setDoc(docRef, sanitized, { merge: true });
 };
 
 export const deletePublicReportFromFirebase = async (reportId: string) => {
@@ -274,7 +304,8 @@ export const uploadAllLocalDataToCloud = async (
       extUnits.forEach((unit) => {
         if (unit && unit.id) {
           const ref = doc(db, COLLECTIONS.EXTINGUISHERS, unit.id);
-          batch.set(ref, { ...unit, updatedAt: new Date().toISOString() }, { merge: true });
+          const sanitized = cleanFirestoreData({ ...unit, updatedAt: new Date().toISOString() });
+          batch.set(ref, sanitized, { merge: true });
         }
       });
     }
@@ -283,7 +314,8 @@ export const uploadAllLocalDataToCloud = async (
       inspRecords.forEach((record) => {
         if (record && record.id) {
           const ref = doc(db, COLLECTIONS.INSPECTIONS, record.id);
-          batch.set(ref, { ...record, createdAt: (record as any).createdAt || new Date().toISOString() }, { merge: true });
+          const sanitized = cleanFirestoreData({ ...record, createdAt: (record as any).createdAt || new Date().toISOString() });
+          batch.set(ref, sanitized, { merge: true });
         }
       });
     }
@@ -292,7 +324,8 @@ export const uploadAllLocalDataToCloud = async (
       bldList.forEach((bld) => {
         if (bld && bld.id) {
           const ref = doc(db, COLLECTIONS.BUILDINGS, bld.id);
-          batch.set(ref, bld, { merge: true });
+          const sanitized = cleanFirestoreData(bld);
+          batch.set(ref, sanitized, { merge: true });
         }
       });
     }
@@ -301,22 +334,20 @@ export const uploadAllLocalDataToCloud = async (
       actLogs.forEach((log) => {
         if (log && log.id) {
           const ref = doc(db, COLLECTIONS.ACTIVITY_LOGS, log.id);
-          batch.set(ref, log, { merge: true });
+          const sanitized = cleanFirestoreData(log);
+          batch.set(ref, sanitized, { merge: true });
         }
       });
     }
 
     if (userProf || lineConf) {
       const settingsRef = doc(db, COLLECTIONS.APP_SETTINGS, 'general');
-      batch.set(
-        settingsRef,
-        {
-          ...(userProf ? { profile: userProf } : {}),
-          ...(lineConf ? { lineConfig: lineConf } : {}),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      const sanitized = cleanFirestoreData({
+        ...(userProf ? { profile: userProf } : {}),
+        ...(lineConf ? { lineConfig: lineConf } : {}),
+        updatedAt: new Date().toISOString(),
+      });
+      batch.set(settingsRef, sanitized, { merge: true });
     }
 
     await batch.commit();

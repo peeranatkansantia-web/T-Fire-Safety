@@ -599,7 +599,7 @@ export function App() {
 
   // Handlers
   const handleAddRecord = (newRecord: InspectionRecord) => {
-    setRecords([newRecord, ...records]);
+    setRecords(prev => [newRecord, ...prev.filter(r => r.id !== newRecord.id)]);
     addInspectionToFirebase(newRecord).catch(console.error);
 
     // Update target extinguisher status
@@ -634,12 +634,12 @@ export function App() {
       locationTh: profile.departmentTh,
       severity: newRecord.status === 'passed' ? 'normal' : 'error',
     };
-    setActivityLogs([newLog, ...activityLogs]);
+    setActivityLogs(prev => [newLog, ...prev.filter(l => l.id !== newLog.id)]);
     addActivityLogToFirebase(newLog).catch(console.error);
   };
 
   const handleAddUnit = (newUnit: ExtinguisherUnit) => {
-    setExtinguishers([newUnit, ...extinguishers]);
+    setExtinguishers(prev => [newUnit, ...prev.filter(u => u.id !== newUnit.id)]);
     saveExtinguisherToFirebase(newUnit).catch(console.error);
     
     // Auto-create building compliance record if building doesn't exist yet
