@@ -25,17 +25,20 @@ import {
   Sliders,
   Send
 } from 'lucide-react';
-import { ExtinguisherUnit, Language, PublicIssueReport } from '../types';
+import { ExtinguisherUnit, Language, PublicIssueReport, InspectionRecord } from '../types';
 
 interface PublicViewProps {
   lang: Language;
   setLang: (lang: Language) => void;
   extinguishers: ExtinguisherUnit[];
   activeUnit: ExtinguisherUnit | null;
+  records?: InspectionRecord[];
+  publicReports?: PublicIssueReport[];
   onSelectUnit: (unit: ExtinguisherUnit) => void;
   onOpenQrScanner: () => void;
-  onOpenReportIssue: (unit?: ExtinguisherUnit) => void;
+  onOpenReportIssue: (unit?: ExtinguisherUnit, initialIssueType?: PublicIssueReport['issueType'], initialDescription?: string) => void;
   onRequestAdminLogin: (intendedAction?: 'inspect' | 'manage', unitId?: string) => void;
+  onSubmitPublicVerification?: (unitId: string, result: { passed: boolean; details: Record<string, boolean> }) => void;
 }
 
 export const PublicView: React.FC<PublicViewProps> = ({
@@ -43,10 +46,13 @@ export const PublicView: React.FC<PublicViewProps> = ({
   setLang,
   extinguishers,
   activeUnit: initialActiveUnit,
+  records = [],
+  publicReports = [],
   onSelectUnit,
   onOpenQrScanner,
   onOpenReportIssue,
   onRequestAdminLogin,
+  onSubmitPublicVerification,
 }) => {
   const isTh = lang === 'th';
 
@@ -54,6 +60,31 @@ export const PublicView: React.FC<PublicViewProps> = ({
   const [selectedBuilding, setSelectedBuilding] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'unit' | 'all_units' | 'emergency_guide' | 'contacts'>('unit');
   const [selectedUnitState, setSelectedUnitState] = useState<ExtinguisherUnit | null>(initialActiveUnit || extinguishers[0] || null);
+
+  // 4-Point Citizen/Employee Quick Inspection State
+  const [auditState, setAuditState] = useState<{
+    gauge: boolean | null;
+    seal: boolean | null;
+    body: boolean | null;
+    access: boolean | null;
+  }>({
+    gauge: null,
+    seal: null,
+    body: null,
+    access: null,
+  });
+  const [verificationSuccess, setVerificationSuccess] = useState<boolean>(false);
+
+  // Reset audit state when switching active unit
+  React.useEffect(() => {
+    setAuditState({
+      gauge: null,
+      seal: null,
+      body: null,
+      access: null,
+    });
+    setVerificationSuccess(false);
+  }, [initialActiveUnit?.id]);
 
   // Sync state when active unit changes from parent or URL/QR scan
   React.useEffect(() => {
@@ -64,6 +95,18 @@ export const PublicView: React.FC<PublicViewProps> = ({
   }, [initialActiveUnit]);
 
   const activeUnit = selectedUnitState || initialActiveUnit || extinguishers[0] || null;
+
+  // Pending reports for this specific unit
+  const unitPendingReports = useMemo(() => {
+    if (!activeUnit || !publicReports) return [];
+    return publicReports.filter(r => r.unitId === activeUnit.id && r.status !== 'resolved');
+  }, [activeUnit, publicReports]);
+
+  // Inspection records history for this specific unit
+  const unitRecentRecords = useMemo(() => {
+    if (!activeUnit || !records) return [];
+    return records.filter(r => r.extinguisherId === activeUnit.id).slice(0, 4);
+  }, [activeUnit, records]);
 
   // Unique buildings
   const buildings = useMemo(() => {
@@ -498,6 +541,29 @@ export const PublicView: React.FC<PublicViewProps> = ({
                 </div>
               )}
 
+              {/* Pending Public Issue Alert Banner (If Any) */}
+              {unitPendingReports.length > 0 && (
+                <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-3 text-amber-950 animate-in fade-in">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs sm:text-sm">
+                        {isTh ? '⚠️ มีรายการแจ้งปัญหาเกี่ยวกับถังนี้' : '⚠️ Reported Defect Notice'}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full">
+                        {isTh ? 'อยู่ระหว่างเจ้าหน้าที่ตรวจสอบ' : 'Investigating'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      {unitPendingReports[0].description || (isTh ? 'พบความผิดปกติของอุปกรณ์' : 'Issue reported on equipment')}
+                    </p>
+                    <p className="text-[10px] text-amber-700 font-bold">
+                      {isTh ? `แจ้งโดยคุณ: ${unitPendingReports[0].reporterName}` : `Reported by: ${unitPendingReports[0].reporterName}`} • {unitPendingReports[0].createdAt}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Primary User Actions Bar */}
               <div className="pt-2 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 
@@ -525,7 +591,386 @@ export const PublicView: React.FC<PublicViewProps> = ({
 
             </div>
 
-            {/* Quick 4-Step How to Use (P.A.S.S.) Preview Banner */}
+            {/* PUBLIC 4-POINT QUICK INSPECTION CHECKLIST (Interactive Citizen Verification) */}
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-7 shadow-sm text-left space-y-5">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-red-100 text-[#d32f2f] rounded-xl">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <h3 className="text-base sm:text-lg font-black text-gray-900">
+                      {isTh ? '🔍 ร่วมตรวจเช็กสภาพถัง 4 จุดสำคัญ' : 'Public 4-Point Quick Check'}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {isTh ? 'ทุกคนสามารถร่วมตรวจสอบความพร้อมใช้งานตามเกณฑ์มาตรฐานความปลอดภัย NFPA 10' : 'Anyone can perform a rapid 4-point visual inspection to ensure readiness'}
+                  </p>
+                </div>
+
+                {/* Live Progress Chip */}
+                {(() => {
+                  const checks = [auditState.gauge, auditState.seal, auditState.body, auditState.access];
+                  const answeredCount = checks.filter(c => c !== null).length;
+                  const allPass = checks.every(c => c === true);
+                  const hasDefect = checks.some(c => c === false);
+
+                  return (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs font-black px-3 py-1.5 rounded-xl border ${
+                        allPass 
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : hasDefect
+                            ? 'bg-red-50 text-red-800 border-red-300'
+                            : 'bg-gray-100 text-gray-700 border-gray-200'
+                      }`}>
+                        {answeredCount === 0 
+                          ? (isTh ? 'ยังไม่ได้ตรวจ' : 'Not inspected')
+                          : allPass 
+                            ? (isTh ? '✅ สมบูรณ์ 4/4 จุด' : '✅ 4/4 Points Pass')
+                            : hasDefect 
+                              ? (isTh ? '🚨 พบจุดบกพร่อง' : '🚨 Defect Found')
+                              : (isTh ? `ตรวจแล้ว ${answeredCount}/4 จุด` : `${answeredCount}/4 Checked`)}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 4 Interactive Checklist Items */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                
+                {/* Item 1: Gauge Pressure */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  auditState.gauge === true 
+                    ? 'bg-emerald-50/70 border-emerald-300' 
+                    : auditState.gauge === false 
+                      ? 'bg-red-50/70 border-red-300' 
+                      : 'bg-gray-50/60 border-gray-200'
+                }`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-black flex items-center justify-center">1</span>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-gray-900">
+                        {isTh ? 'เกจวัดแรงดัน (Pressure Gauge)' : 'Pressure Gauge'}
+                      </h4>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+                    {isTh ? 'เข็มชี้อยู่ในแถบสีเขียว (Green Operational Zone / 150-195 PSI) พร้อมฉีดใช้งาน' : 'Needle points inside the green operational range'}
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, gauge: true }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.gauge === true
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'ปกติ (เข็มเขียว)' : 'Normal (Green)'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, gauge: false }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.gauge === false
+                          ? 'bg-red-600 text-white border-red-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'ผิดปกติ (เข็มตก/เกิน)' : 'Defect (Out of zone)'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Item 2: Safety Pin & Seal */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  auditState.seal === true 
+                    ? 'bg-emerald-50/70 border-emerald-300' 
+                    : auditState.seal === false 
+                      ? 'bg-red-50/70 border-red-300' 
+                      : 'bg-gray-50/60 border-gray-200'
+                }`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-black flex items-center justify-center">2</span>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-gray-900">
+                        {isTh ? 'สลักและซีลนิรภัย (Pin & Seal)' : 'Safety Pin & Tamper Seal'}
+                      </h4>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+                    {isTh ? 'สลักล็อกโลหะเสียบอยู่ และซีลพลาสติกไม่ขาด เพื่อป้องกันการฉีดโดยไม่ได้ตั้งใจ' : 'Safety pin is inserted and tamper seal is unbroken'}
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, seal: true }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.seal === true
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'ปกติ (ซีลแน่น)' : 'Intact & Sealed'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, seal: false }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.seal === false
+                          ? 'bg-red-600 text-white border-red-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'ชำรุด (สลักหลุด/ซีลขาด)' : 'Broken / Missing'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Item 3: Body & Hose */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  auditState.body === true 
+                    ? 'bg-emerald-50/70 border-emerald-300' 
+                    : auditState.body === false 
+                      ? 'bg-red-50/70 border-red-300' 
+                      : 'bg-gray-50/60 border-gray-200'
+                }`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-black flex items-center justify-center">3</span>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-gray-900">
+                        {isTh ? 'สภาพตัวถังและสายฉีด (Body & Hose)' : 'Cylinder & Discharge Hose'}
+                      </h4>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+                    {isTh ? 'ตัวถังไม่บุบ ไม่ขึ้นสนิม สายฉีดยืดหยุ่นดี ไม่อุดตัน และไม่แตกกรอบ' : 'No dents, severe corrosion, hose intact with no clogging'}
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, body: true }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.body === true
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'ปกติ (สภาพดี)' : 'Good Condition'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, body: false }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.body === false
+                          ? 'bg-red-600 text-white border-red-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'ชำรุด (มีสนิม/บุบ/สายแตก)' : 'Damaged / Corroded'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Item 4: Mounting & Clear Access */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  auditState.access === true 
+                    ? 'bg-emerald-50/70 border-emerald-300' 
+                    : auditState.access === false 
+                      ? 'bg-red-50/70 border-red-300' 
+                      : 'bg-gray-50/60 border-gray-200'
+                }`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-black flex items-center justify-center">4</span>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-gray-900">
+                        {isTh ? 'การเข้าถึงและจุดติดตั้ง (Accessibility)' : 'Location & Clear Access'}
+                      </h4>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+                    {isTh ? 'แขวนในระดับสูงไม่เกิน 1.5 ม. มีป้ายชี้บ่งชัดเจน และไม่มีสิ่งของวางกีดขวาง' : 'Clear access, mounted securely with visible signage'}
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, access: true }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.access === true
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'ปกติ (เข้าถึงสะดวก)' : 'Clear & Accessible'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAuditState(prev => ({ ...prev, access: false }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border ${
+                        auditState.access === false
+                          ? 'bg-red-600 text-white border-red-700 shadow-xs'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{isTh ? 'มีสิ่งกีดขวาง / หยิบยาก' : 'Blocked / Obstructed'}</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Action Buttons Based on Audit Result */}
+              {(() => {
+                const checks = [auditState.gauge, auditState.seal, auditState.body, auditState.access];
+                const allPass = checks.every(c => c === true);
+                const hasDefect = checks.some(c => c === false);
+
+                if (verificationSuccess) {
+                  return (
+                    <div className="p-4 bg-emerald-100 text-emerald-900 rounded-2xl border border-emerald-300 flex items-center justify-center gap-2 text-xs sm:text-sm font-black animate-in zoom-in-95">
+                      <Sparkles className="w-5 h-5 text-emerald-700" />
+                      <span>{isTh ? '🎉 ขอบคุณสำหรับการร่วมตรวจเช็ก! บันทึกข้อมูลเข้าสู่ฐานข้อมูลระบบแล้ว' : 'Verification recorded successfully! Thank you.'}</span>
+                    </div>
+                  );
+                }
+
+                if (allPass) {
+                  return (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onSubmitPublicVerification) {
+                            onSubmitPublicVerification(activeUnit.id, {
+                              passed: true,
+                              details: {
+                                gauge: true,
+                                seal: true,
+                                body: true,
+                                access: true,
+                              },
+                            });
+                          }
+                          setVerificationSuccess(true);
+                          setTimeout(() => setVerificationSuccess(false), 5000);
+                        }}
+                        className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-98"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>{isTh ? '✅ บันทึกยืนยันความพร้อมใช้งาน (Submit Public Verification)' : 'Submit Verification'}</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                if (hasDefect) {
+                  return (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          let defType: PublicIssueReport['issueType'] = 'pressure_low';
+                          let desc = '';
+                          if (auditState.gauge === false) {
+                            defType = 'pressure_low';
+                            desc = 'เข็มเกจวัดแรงดันตกหรือไม่อยู่ในแถบสีเขียว';
+                          } else if (auditState.seal === false) {
+                            defType = 'seal_broken';
+                            desc = 'สลักนิรภัยหรือซีลพลาสติกชำรุด/หลุดหาย';
+                          } else if (auditState.body === false) {
+                            defType = 'damaged_body';
+                            desc = 'สภาพตัวถังบุบ เป็นสนิม หรือสายฉีดชำรุด';
+                          } else if (auditState.access === false) {
+                            defType = 'blocked';
+                            desc = 'มีสิ่งของวางกีดขวางจุดติดตั้งถังดับเพลิง';
+                          }
+                          onOpenReportIssue(activeUnit, defType, desc);
+                        }}
+                        className="w-full py-3.5 px-4 bg-[#d32f2f] hover:bg-[#af101a] text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 animate-pulse active:scale-98"
+                      >
+                        <AlertTriangle className="w-5 h-5" />
+                        <span>{isTh ? '🚨 ส่งแจ้งชำรุดจุดนี้ทันที (Report Defect to Safety Team)' : 'Report Defect Immediately'}</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
+
+            </div>
+
+            {/* NFPA 10 OFFICIAL INSPECTION HISTORY TRANSPARENCY */}
+            <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-7 shadow-sm text-left space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-base sm:text-lg font-black text-gray-900">
+                    {isTh ? 'ประวัติการตรวจเช็กจริงโดยเจ้าหน้าที่ จป.' : 'Official Inspection History'}
+                  </h3>
+                </div>
+                <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-xl">
+                  {unitRecentRecords.length} {isTh ? 'รายการล่าสุด' : 'recent logs'}
+                </span>
+              </div>
+
+              {unitRecentRecords.length > 0 ? (
+                <div className="space-y-2.5">
+                  {unitRecentRecords.map((rec) => (
+                    <div key={rec.id} className="p-3.5 bg-gray-50 hover:bg-gray-100/80 rounded-2xl border border-gray-200/80 flex items-center justify-between gap-3 transition-colors">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-gray-900">{rec.date}</span>
+                          <span className="text-[10px] text-gray-500 font-mono">({rec.time})</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            rec.status === 'passed' 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {rec.status === 'passed' ? (isTh ? 'ผ่านเกณฑ์' : 'Passed') : (isTh ? 'ไม่ผ่าน' : 'Failed')}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-600">
+                          👮‍♂️ {isTh ? rec.inspectorNameTh || rec.inspectorName : rec.inspectorName} ({rec.inspectorBadge})
+                          {rec.pressurePsi && <span className="ml-2 font-mono font-bold text-emerald-700">Gauge: {rec.pressurePsi} PSI</span>}
+                        </p>
+                      </div>
+
+                      {rec.status === 'passed' ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-xs text-gray-500 bg-gray-50 rounded-2xl border border-gray-100">
+                  <Info className="w-6 h-6 mx-auto mb-1.5 text-gray-400" />
+                  <p className="font-bold">{isTh ? 'ยังไม่มีบันทึกประวัติการตรวจในระบบ หรือเป็นอุปกรณ์ที่เพิ่งเพิ่มใหม่' : 'No prior inspection records found for this unit'}</p>
+                </div>
+              )}
+            </div>
             <div className="bg-gradient-to-r from-red-600 to-red-700 text-white rounded-3xl p-5 sm:p-6 shadow-md text-left space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

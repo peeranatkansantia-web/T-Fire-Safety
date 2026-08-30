@@ -280,6 +280,17 @@ export const addPublicReportToFirebase = async (report: PublicIssueReport) => {
   await setDoc(docRef, sanitized, { merge: true });
 };
 
+export const updatePublicReportInFirebase = async (
+  reportOrId: string | PublicIssueReport,
+  updates?: Partial<PublicIssueReport>
+) => {
+  const id = typeof reportOrId === 'string' ? reportOrId : reportOrId.id;
+  const data = typeof reportOrId === 'string' ? updates || {} : reportOrId;
+  const docRef = doc(db, COLLECTIONS.PUBLIC_REPORTS, id);
+  const sanitized = cleanFirestoreData(data);
+  await setDoc(docRef, sanitized, { merge: true });
+};
+
 export const deletePublicReportFromFirebase = async (reportId: string) => {
   const docRef = doc(db, COLLECTIONS.PUBLIC_REPORTS, reportId);
   await deleteDoc(docRef);

@@ -13,39 +13,51 @@ import {
   Building, 
   Calendar, 
   Check,
-  Trash2
+  Trash2,
+  PhoneCall,
+  ShieldCheck,
+  CheckCheck
 } from 'lucide-react';
 import { 
   ExtinguisherUnit, 
   InspectionRecord, 
   Language, 
-  ExtinguisherStatus 
+  ExtinguisherStatus,
+  PublicIssueReport
 } from '../types';
 
 interface DashboardViewProps {
   lang: Language;
   extinguishers: ExtinguisherUnit[];
   records: InspectionRecord[];
+  publicReports?: PublicIssueReport[];
   onOpenNewInspection: () => void;
   onOpenNewUnit: () => void;
   onOpenFacilityMap: () => void;
   onViewUnitDetail: (unit: ExtinguisherUnit) => void;
   onOpenQrCode: (unit: ExtinguisherUnit) => void;
   onDeleteUnit?: (unitId: string) => void;
+  onResolveReport?: (reportId: string) => void;
+  onInspectUnit?: (unitId: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   lang,
   extinguishers,
   records,
+  publicReports = [],
   onOpenNewInspection,
   onOpenNewUnit,
   onOpenFacilityMap,
   onViewUnitDetail,
   onOpenQrCode,
   onDeleteUnit,
+  onResolveReport,
+  onInspectUnit,
 }) => {
   const isTh = lang === 'th';
+
+  const pendingReports = publicReports.filter(r => r.status !== 'resolved');
 
   // Metrics calculations
   const totalCount = extinguishers.length;
@@ -146,6 +158,86 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Subtle background glow effect */}
         <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-[#d32f2f]/30 rounded-full blur-3xl pointer-events-none"></div>
       </div>
+
+      {/* Public Reports Notification Alert Box (If Any Pending Issues) */}
+      {pendingReports.length > 0 && (
+        <div className="bg-gradient-to-r from-red-50 to-amber-50 border-2 border-red-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4 text-left">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-red-200/70">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 text-[#d32f2f] rounded-2xl animate-bounce">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-red-950 flex items-center gap-2">
+                  <span>{isTh ? '🚨 มีรายการแจ้งปัญหาจากประชาชน / พนักงาน' : '🚨 Citizen & Staff Reported Defects'}</span>
+                  <span className="bg-[#d32f2f] text-white text-xs px-2.5 py-0.5 rounded-full font-extrabold">
+                    {pendingReports.length} {isTh ? 'รายการรอตรวจ' : 'Pending'}
+                  </span>
+                </h3>
+                <p className="text-xs text-red-800">
+                  {isTh ? 'รายการแจ้งชำรุดที่เชื่อมโยงกับรหัสถังดับเพลิง กรุณาส่งเจ้าหน้าที่เข้าตรวจสอบ' : 'Linked issues submitted via QR Scan / Public Portal requiring investigation'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {pendingReports.map(report => (
+              <div key={report.id} className="bg-white p-4 rounded-2xl border border-red-200 shadow-xs flex flex-col justify-between space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-gray-900 bg-red-50 text-[#d32f2f] px-2 py-0.5 rounded-lg border border-red-100">
+                      ถัง {report.unitId}
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-bold">{report.createdAt}</span>
+                  </div>
+
+                  <p className="text-xs font-bold text-gray-900 line-clamp-2">
+                    {report.description || (isTh ? 'แจ้งปัญหาอุปกรณ์' : 'Issue reported')}
+                  </p>
+
+                  <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                    <span>👤 {report.reporterName || (isTh ? 'ผู้ใช้งานทั่วไป' : 'Public user')}</span>
+                    {report.reporterPhone && (
+                      <a 
+                        href={`tel:${report.reporterPhone}`} 
+                        className="text-[#d32f2f] font-bold hover:underline inline-flex items-center gap-0.5"
+                      >
+                        <PhoneCall className="w-3 h-3" />
+                        <span>{report.reporterPhone}</span>
+                      </a>
+                    )}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-gray-100 flex items-center gap-2">
+                  {onInspectUnit && (
+                    <button
+                      type="button"
+                      onClick={() => onInspectUnit(report.unitId)}
+                      className="flex-1 py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{isTh ? 'บันทึกตรวจ' : 'Inspect'}</span>
+                    </button>
+                  )}
+
+                  {onResolveReport && (
+                    <button
+                      type="button"
+                      onClick={() => onResolveReport(report.id)}
+                      className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{isTh ? 'แก้ไขแล้ว' : 'Resolve'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 4 Summary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

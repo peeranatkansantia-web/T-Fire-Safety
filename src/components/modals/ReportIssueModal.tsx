@@ -22,6 +22,8 @@ interface ReportIssueModalProps {
   lang: Language;
   unit: ExtinguisherUnit | null;
   extinguishers?: ExtinguisherUnit[];
+  initialIssueType?: PublicIssueReport['issueType'];
+  initialDescription?: string;
   onSubmitReport: (report: PublicIssueReport) => void;
 }
 
@@ -31,6 +33,8 @@ export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({
   lang,
   unit,
   extinguishers = [],
+  initialIssueType,
+  initialDescription,
   onSubmitReport,
 }) => {
   if (!isOpen) return null;
@@ -38,8 +42,8 @@ export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({
   const isTh = lang === 'th';
 
   const [selectedUnitId, setSelectedUnitId] = useState<string>(unit ? unit.id : extinguishers[0]?.id || '');
-  const [issueType, setIssueType] = useState<PublicIssueReport['issueType']>('pressure_low');
-  const [description, setDescription] = useState('');
+  const [issueType, setIssueType] = useState<PublicIssueReport['issueType']>(initialIssueType || 'pressure_low');
+  const [description, setDescription] = useState(initialDescription || '');
   const [reporterName, setReporterName] = useState('');
   const [reporterPhone, setReporterPhone] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);

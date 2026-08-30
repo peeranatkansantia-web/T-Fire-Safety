@@ -61,6 +61,7 @@ import {
   uploadAllLocalDataToCloud,
   subscribeToPublicReports,
   addPublicReportToFirebase,
+  updatePublicReportInFirebase,
 } from './firebase';
 
 export function App() {
@@ -485,6 +486,8 @@ export function App() {
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isReportIssueOpen, setIsReportIssueOpen] = useState(false);
   const [reportTargetUnit, setReportTargetUnit] = useState<ExtinguisherUnit | null>(null);
+  const [reportInitialType, setReportInitialType] = useState<PublicIssueReport['issueType'] | undefined>(undefined);
+  const [reportInitialDesc, setReportInitialDesc] = useState<string | undefined>(undefined);
   const [pendingAdminAction, setPendingAdminAction] = useState<{ type: 'inspect' | 'manage'; unitId?: string } | null>(null);
   const [publicActiveUnit, setPublicActiveUnit] = useState<ExtinguisherUnit | null>(null);
 
@@ -583,9 +586,43 @@ export function App() {
     setPendingAdminAction(null);
   };
 
-  const handleOpenReportIssue = (unit?: ExtinguisherUnit) => {
+  const handleOpenReportIssue = (
+    unit?: ExtinguisherUnit,
+    initialIssueType?: PublicIssueReport['issueType'],
+    initialDescription?: string
+  ) => {
     setReportTargetUnit(unit || null);
+    setReportInitialType(initialIssueType);
+    setReportInitialDesc(initialDescription);
     setIsReportIssueOpen(true);
+  };
+
+  const handleResolveReport = (reportId: string) => {
+    const updated = publicReports.map(r => r.id === reportId ? { ...r, status: 'resolved' as const } : r);
+    setPublicReports(updated);
+    try {
+      localStorage.setItem('firesafe_public_reports', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    updatePublicReportInFirebase(reportId, { status: 'resolved' }).catch(console.error);
+
+    const rep = publicReports.find(r => r.id === reportId);
+    if (rep) {
+      const newLog: ActivityLog = {
+        id: `ACT-${Date.now()}`,
+        timestamp: 'Just now',
+        timestampTh: 'เมื่อสักครู่นี้',
+        unitId: rep.unitId,
+        title: `Resolved defect report for ${rep.unitId}`,
+        titleTh: `แก้ไขและปิดรายการแจ้งปัญหาถัง ${rep.unitId} เรียบร้อยแล้ว`,
+        location: rep.building,
+        locationTh: rep.buildingTh,
+        severity: 'normal',
+      };
+      setActivityLogs(prev => [newLog, ...prev]);
+      addActivityLogToFirebase(newLog).catch(console.error);
+    }
   };
 
   const handleSubmitPublicReport = (newReport: PublicIssueReport) => {
@@ -862,10 +899,27 @@ export function App() {
           setLang={setLang}
           extinguishers={extinguishers}
           activeUnit={publicActiveUnit || extinguishers[0] || null}
+          records={records}
+          publicReports={publicReports}
           onSelectUnit={(unit) => setPublicActiveUnit(unit)}
           onOpenQrScanner={handleOpenQrScanner}
           onOpenReportIssue={handleOpenReportIssue}
           onRequestAdminLogin={handleRequestAdminLogin}
+          onSubmitPublicVerification={(unitId) => {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            const dateStr = now.toISOString().split('T')[0];
+            const newLog = {
+              id: `log-${Date.now()}`,
+              action: `Public inspection completed for unit ${unitId} (4/4 passed)`,
+              actionTh: `ประชาชนร่วมตรวจสภาพ 4 จุด: ${unitId} (ผล: ปกติทุกข้อ)`,
+              user: 'Citizen / Staff',
+              userTh: 'ประชาชน / พนักงาน (ตรวจร่วม)',
+              timestamp: `${dateStr} ${timeStr}`,
+              type: 'inspection' as const,
+            };
+            setActivityLogs(prev => [newLog, ...prev]);
+          }}
         />
       ) : (
         /* Admin / Safety Officer Operations Center View */
@@ -966,12 +1020,18 @@ export function App() {
                   lang={lang}
                   extinguishers={extinguishers}
                   records={records}
+                  publicReports={publicReports}
                   onOpenNewInspection={() => setIsNewInspectionOpen(true)}
                   onOpenNewUnit={() => setIsNewUnitOpen(true)}
                   onOpenFacilityMap={() => setIsFacilityMapOpen(true)}
                   onViewUnitDetail={handleViewUnitDetail}
                   onOpenQrCode={handleOpenQrCode}
                   onDeleteUnit={handleDeleteUnit}
+                  onResolveReport={handleResolveReport}
+                  onInspectUnit={(unitId) => {
+                    setInspectionUnitId(unitId);
+                    setIsNewInspectionOpen(true);
+                  }}
                 />
               )}
 
@@ -1147,9 +1207,13 @@ export function App() {
         onClose={() => {
           setIsReportIssueOpen(false);
           setReportTargetUnit(null);
+          setReportInitialType(undefined);
+          setReportInitialDesc(undefined);
         }}
         lang={lang}
         unit={reportTargetUnit}
+        initialIssueType={reportInitialType}
+        initialDescription={reportInitialDesc}
         extinguishers={extinguishers}
         onSubmitReport={handleSubmitPublicReport}
       />
